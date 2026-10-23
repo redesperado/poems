@@ -162,26 +162,29 @@ Warm, uplifting, artistic, modern mobile interface.
 
 ---
 
-## 五、Stitch 导出资产与前端工程对接规范
+## 五、Stitch 导出资产与动态主题引擎（Theme Engine）对接规范
 
-1. **Tailwind 色彩扩展（`tailwind.config.js`）**：
-   * 将上述全新“新东方·春生”色板直接注入 Tailwind 变量：
-     ```js
-     theme: {
-       extend: {
-         colors: {
-           spring: {
-             dew: '#F6F9F5',      // 晨露白 (Canvas)
-             sprout: '#6EE7B7',   // 嫩芽绿
-             emerald: '#10B981',  // 春水碧 (Primary)
-             deep: '#059669',     // 苍翠 (Brand)
-             celadon: '#0D9488',  // 晴空青瓷
-             gold: '#F59E0B',     // 暖阳金 (Inspiration)
-             peach: '#F472B6',    // 桃夭粉 (Accent)
-             ink: '#0F172A',      // 曜岩墨 (Text)
-           }
-         }
-       }
+> **关键设计理念**：Google Stitch 负责快速发散视觉灵感与布局原型，但**绝对不能将 Stitch 生成的硬编码样式直接作为最终业务代码**！所有组件必须通过 **动态主题引擎（Theme Engine）** 抽象，支持运行时无缝换肤与多主题切换。
+
+1. **CSS 变量分层与主题可插拔体系**：
+   * 在全局定义语义化 CSS 变量（如 `--color-bg-canvas`, `--color-primary`, `--shape-button`），Tailwind 基于变量映射；
+   * 通过在根节点切换 `data-theme` 属性（如 `data-theme="spring"` 或 `data-theme="song-celadon"`）实现瞬间换肤：
+     ```css
+     /* 默认：新东方·春生主题 */
+     :root[data-theme="spring"] {
+       --color-bg-canvas: #F6F9F5;
+       --color-primary: #10B981;
+       --color-accent: #0D9488;
+       --color-gold: #F59E0B;
+       --color-text-main: #0F172A;
+     }
+     /* 预留：天青雨后·宋韵主题 */
+     :root[data-theme="song-celadon"] {
+       --color-bg-canvas: #F2F5F4;
+       --color-primary: #2DD4BF;
+       --color-accent: #0F766E;
+       --color-gold: #D97706;
+       --color-text-main: #134E4A;
      }
      ```
 2. **异形剪裁与 SVG 蒙版支持**：
@@ -197,3 +200,4 @@ Warm, uplifting, artistic, modern mobile interface.
 | :--- | :--- | :--- | :--- |
 | **v1.0** | 2026-09-24 | 建立基础文档；初版传统泛黄水墨 Design Tokens 与 5 大核心界面 Stitch 提示词库。 | Antigravity AI |
 | **v1.1** | 2026-10-23 | **UI 视觉体系重大重构**：全面转向“新东方·春生”现代风格（晨露白底、春水碧与青瓷光谱、毛玻璃与生机光晕）；打破死板直角，引入唐代海棠形、宋瓷葵口、飞檐弧线等朝代异形轮廓系统；全面重写 5 大 Stitch 英文 Prompt 库与 Tailwind 配置。 | Antigravity AI |
+| **v1.2** | 2026-10-23 | **高扩展性架构落地**：增加主题引擎（Theme Engine）解耦规范，明确 Stitch 仅作为灵感层，底层采用 CSS 变量与 `data-theme` 驱动多主题运行时动态换肤。 | Antigravity AI |

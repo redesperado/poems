@@ -428,42 +428,58 @@ interface LifeChoice {
 
 ---
 
-## 五、技术选型
+## 五、技术选型与高扩展性架构
+
+### 5.1 技术方案选型
 
 | 层次 | 技术方案 | 选型理由 |
 |------|---------|---------|
-| 游戏引擎 | Phaser.js 3.x | 成熟 2D Web 引擎，场景 / 动画 / 事件系统完善，文档丰富 |
-| 关系图谱 | D3.js | 力导向图算法成熟，支持高度自定义视觉样式 |
-| 地图底图 | 自定义 SVG（水墨矢量） | 矢量无损缩放，风格完全可控，朝代切换替换文件即可 |
-| 类型系统 | TypeScript | 数据结构复杂，类型安全减少运行时 Bug |
-| 构建工具 | Vite | 热重载快，与 Phaser 兼容性良好，零配置启动 |
-| UI 样式 | CSS Modules | 游戏场景用 Phaser 渲染；UI 组件用 CSS 模块化隔离 |
-| 数据 | JSON 静态资产 + LocalStorage | 内容静态加载，进度本地存储，MVP 阶段无需后端 |
+| 游戏引擎 | Phaser.js 3.x / React DOM 混合渲染 | 动画、场景渲染与高性能交互；DOM 层处理现代 UI 与富文本排版 |
+| 关系图谱 | D3.js | 力导向图算法成熟，支持高度自定义视觉样式与关系力场 |
+| 地图底图 | 朝代隔离的矢量 SVG / GeoJSON | 矢量无损缩放，朝代切换（唐/宋）自动载入对应底图与历史地名层 |
+| 主题引擎 | CSS Variables + Tailwind Tokens | 支持运行时换肤，组件与特定色彩完全解耦，随时支持新主题扩展 |
+| 类型系统 | TypeScript | 复杂数据结构强类型保障，诗人/词人/朝代扩展零歧义 |
+| 构建工具 | Vite | 极速热重载，与现代打包体系高度兼容 |
+| 移动端打包 | Capacitor 6.x | 一键打包 iOS / Android 原生 App，支持触觉振动与全屏安全区 |
+| 数据 | 模块化 JSON 资产 + LocalStorage | 诗人数据包（Poet Packs）独立存放，MVP 阶段离线即玩 |
 | 音效（P2） | Howler.js | 轻量音频库，Web Audio API 封装，支持空间音效 |
 
-### 项目目录结构
+### 5.2 高扩展性架构三支柱（诗人·朝代·主题）
+
+1. **诗人/词人数据包化（Poet Packs）**：
+   - 核心引擎完全与李白解耦，按 `data/poets/{poet_id}/` 组织独立数据包；
+   - 诗词拼组系统同时支持**唐诗（五/七言整齐格律）**与**宋词（长短句律动与双调阕调）**；
+   - 追加杜甫、王维、苏轼、李清照等新人物只需录入配置，核心玩法逻辑无需二次开发。
+2. **朝代与历史地理分层（Dynasty & Geo Engine）**：
+   - 全局上下文维护当前朝代环境（`currentDynasty: 'tang' | 'song'`）；
+   - 地点数据内置朝代地名映射（如长安 vs 京兆府，江陵 vs 荆州）；
+   - 切换朝代自动重绘历史疆域与商道水系。
+3. **可插拔动态主题系统（Runtime Theme Engine）**：
+   - 严禁任何 UI 组件硬编码特定色彩或形状；
+   - 全局通过 `data-theme` 动态注入 CSS 变量（涵盖晨露白底色、生机绿主色、朝代异形 `clip-path`、毛玻璃透明度）；
+   - 支持自由开发并接入「新东方·春生」、「宋韵天青」、「金秋落木」等多元风格。
+
+### 5.3 项目目录结构
 
 ```
 src/
   assets/
-    maps/              # 唐 / 宋 SVG 地图底图
-    poets/             # 诗人头像与立绘
-    scenes/            # 诗词触发场景背景图
+    maps/              # 朝代分层地图底图 (tang.svg, song.svg)
+    poets/             # 诗人头像、立绘与书法印鉴
+    themes/            # 主题专属背景纹理与微光粒子
   data/
-    poets.json
-    locations.json
-    events.json
-    poems.json
-    relationships.json
-    life_choices.json
-  game/
-    scenes/            # Phaser Scene（MapScene, PoemScene, ExchangeScene...）
-    systems/           # 核心系统类（MoodSystem, TriggerSystem, CollectionSystem）
-    entities/          # 实体类（Poet, Location, Poem, Relationship）
+    poets/             # 独立诗人数据包 (li_bai/, su_shi/ ...)
+    dynasties.json     # 朝代年代、地图、特殊律制配置
+    locations.json     # 全局历史地点（含朝代地名双向映射）
+    themes.json        # 主题注册表 (春生、天青、深墨...)
+  engine/
+    systems/           # 核心系统 (MoodSystem, TriggerSystem, ThemeEngine, TravelSystem)
+    types/             # 严格 TypeScript 类型定义 (Poet, Poem, Location, Choice)
   ui/
-    components/        # UI 组件（Timeline, CollectionPanel, RelationGraph）
+    components/        # 主题无关的纯净组件 (Timeline, AssemblyPanel, ChoiceModal)
+    themes/            # CSS 变量定义与朝代异形样式 (spring.css, song.css)
   store/
-    GameState.ts       # 全局状态（当前诗人 / 年份 / 情绪 / 典藏进度）
+    GameState.ts       # 全局状态（当前诗人 / 当前朝代 / 当前主题 / 年份 / 情绪）
 ```
 
 ---
