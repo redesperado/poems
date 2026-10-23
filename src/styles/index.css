@@ -1,0 +1,22 @@
+@import './themes.css';
+@import './contours.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局水墨微晕粒子渐变 */
+body {
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-main);
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(13, 148, 136, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.03) 0%, transparent 50%);
+  background-attachment: fixed;
+  font-family: var(--font-family-body);
+}
+
+.font-poetry {
+  font-family: var(--font-family-poetry);
+}

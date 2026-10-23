@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="spring">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>唐宋诗人游历游戏 — 新东方·春生</title>
+  </head>
+  <body class="bg-theme-canvas text-theme-text font-sans antialiased overflow-hidden select-none">
+    <!-- SVG Vector Definitions for Dynastic Non-Rectangular Contours -->
+    <svg width="0" height="0" class="absolute block pointer-events-none" aria-hidden="true">
+      <defs>
+        <!-- 1. 唐代·四出海棠形 / 菱花弧 (Tang 4-lobed Begonia Mirror) 归一化路径 [0,0] 到 [1,1] -->
+        <clipPath id="clip-begonia" clipPathUnits="objectBoundingBox">
+          <path d="M 0.5 0 
+                   C 0.62 0, 0.72 0.08, 0.82 0.18 
+                   C 0.92 0.28, 1 0.38, 1 0.5 
+                   C 1 0.62, 0.92 0.72, 0.82 0.82 
+                   C 0.72 0.92, 0.62 1, 0.5 1 
+                   C 0.38 1, 0.28 0.92, 0.18 0.82 
+                   C 0.08 0.72, 0 0.62, 0 0.5 
+                   C 0 0.38, 0.08 0.28, 0.18 0.18 
+                   C 0.28 0.08, 0.38 0, 0.5 0 Z" />
+        </clipPath>
+
+        <!-- 2. 宋瓷·葵口花瓣按键 (Song Celadon Lobed Petal Card) 归一化路径 -->
+        <clipPath id="clip-lobed-petal" clipPathUnits="objectBoundingBox">
+          <path d="M 0.08 0 
+                   C 0.18 0.04, 0.32 0, 0.5 0.02 
+                   C 0.68 0, 0.82 0.04, 0.92 0 
+                   C 0.98 0.12, 1 0.28, 0.98 0.5 
+                   C 1 0.72, 0.98 0.88, 0.92 1 
+                   C 0.82 0.96, 0.68 1, 0.5 0.98 
+                   C 0.32 1, 0.18 0.96, 0.08 1 
+                   C 0.02 0.88, 0 0.72, 0.02 0.5 
+                   C 0 0.28, 0.02 0.12, 0.08 0 Z" />
+        </clipPath>
+
+        <!-- 3. 唐宋·飞檐起翘/月洞门穹顶底座 (Sweeping Eaves / Moon-gate Top) 归一化路径 -->
+        <clipPath id="clip-sweeping-eaves" clipPathUnits="objectBoundingBox">
+          <path d="M 0 0.2 
+                   C 0.25 0.02, 0.75 0.02, 1 0.2 
+                   L 1 1 
+                   L 0 1 Z" />
+        </clipPath>
+      </defs>
+    </svg>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

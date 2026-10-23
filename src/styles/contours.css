@@ -1,0 +1,39 @@
+/* ==========================================================
+   朝代非直角异形轮廓系统 (Dynastic Non-Rectangular Contours)
+   ========================================================== */
+
+/* 唐代海棠形 / 菱花镜剪裁 */
+.shape-begonia {
+  clip-path: url(#clip-begonia);
+  -webkit-clip-path: url(#clip-begonia);
+}
+
+/* 宋瓷葵口花瓣剪裁 (用于选项按键) */
+.shape-lobed-petal {
+  clip-path: url(#clip-lobed-petal);
+  -webkit-clip-path: url(#clip-lobed-petal);
+}
+
+/* 飞檐起翘/月洞门底座剪裁 */
+.shape-sweeping-eaves {
+  clip-path: url(#clip-sweeping-eaves);
+  -webkit-clip-path: url(#clip-sweeping-eaves);
+}
+
+/* 移动端 100dvh 与 安全区适配 */
+.min-h-dvh-safe {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* 隐藏滚动条但保留滑动 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
