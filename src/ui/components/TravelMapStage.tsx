@@ -1,17 +1,25 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import * as THREE from 'three';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { LocationData } from '../../types/location';
 import { MAJOR_CITIES, CityCulturalData } from '../../data/cities';
 import { CityDetailModal } from './CityDetailModal';
+import { WorldChronicleDrawer } from './WorldChronicleDrawer';
+import {
+  getPoetLocationsAtYear,
+  WorldPoet,
+} from '../../engine/world/poetsWorld';
+import {
+  getChroniclesUpToYear,
+  getCurrentYearHighlight,
+} from '../../engine/world/chronicle';
 import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
   Compass,
   MapPin,
-  Layers,
-  Box,
-  Mountain,
+  BookOpen,
+  Footprints,
+  Users,
 } from 'lucide-react';
 
 interface TravelMapStageProps {
@@ -19,10 +27,71 @@ interface TravelMapStageProps {
   dynasty: 'tang' | 'song';
   onTravel: (locationId: string) => void;
   unlockedPoemIds: string[];
+  currentYear?: number;
 }
 
-// 真实地理关键河流经纬度点集
-const YELLOW_RIVER_LNG_LAT: [number, number][] = [
+// =========================================================================
+// 真实地理投影函数 (中央经纬度投影至 1400 x 950 矢量画布)
+// 经度 98°E ~ 124°E，纬度 20°N ~ 42°N
+// =========================================================================
+const MIN_LNG = 98.0;
+const MAX_LNG = 124.0;
+const MIN_LAT = 20.0;
+const MAX_LAT = 42.0;
+
+export function projectGeo(lng: number, lat: number): { x: number; y: number } {
+  const normX = (lng - MIN_LNG) / (MAX_LNG - MIN_LNG);
+  const normY = (MAX_LAT - lat) / (MAX_LAT - MIN_LAT);
+
+  const x = normX * 1220 + 90;
+  const y = normY * 790 + 80;
+  return { x, y };
+}
+
+// 辅助：生成平滑 SVG 曲线路径
+function coordsToPath(coords: [number, number][]): string {
+  if (coords.length === 0) return '';
+  const pts = coords.map(([lng, lat]) => projectGeo(lng, lat));
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    const curr = pts[i];
+    const cx = (prev.x + curr.x) / 2;
+    const cy = (prev.y + curr.y) / 2;
+    d += ` Q ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return d;
+}
+
+// 真实中国海岸线关键采样点 (渤海、辽东、山东半岛、海州湾、长江口、杭州湾、浙闽粤海岸)
+const COASTLINE_COORDS: [number, number][] = [
+  [121.5, 41.2],
+  [120.0, 40.5],
+  [118.0, 39.2],
+  [117.8, 38.6],
+  [118.8, 37.8],
+  [120.6, 37.8],
+  [122.4, 37.4],
+  [121.5, 36.1],
+  [119.6, 34.8],
+  [120.8, 33.3],
+  [121.8, 31.8],
+  [121.5, 31.2],
+  [121.2, 30.5],
+  [121.8, 29.8],
+  [120.8, 28.0],
+  [119.8, 26.5],
+  [118.6, 24.8],
+  [116.8, 23.5],
+  [114.2, 22.3],
+  [111.0, 21.5],
+  [109.8, 20.8],
+];
+
+// 黄河全干流经纬度 (九曲黄河万里沙)
+const YELLOW_RIVER_COORDS: [number, number][] = [
   [98.2, 35.8],
   [101.5, 35.8],
   [103.8, 36.05],
@@ -34,38 +103,40 @@ const YELLOW_RIVER_LNG_LAT: [number, number][] = [
   [111.5, 39.5],
   [110.5, 37.8],
   [110.4, 36.1],
-  [110.2, 34.6], // 潼关大拐弯
+  [110.2, 34.6], // 潼关大转折
   [111.2, 34.8], // 三门峡
   [112.45, 34.9], // 洛阳北
   [114.34, 35.0], // 开封北
   [116.8, 36.5],
   [118.8, 37.6],
-  [119.5, 37.8], // 入渤海
+  [119.4, 37.8], // 入渤海
 ];
 
-const YANGTZE_RIVER_LNG_LAT: [number, number][] = [
+// 长江全干流经纬度 (万里长江横贯东西)
+const YANGTZE_RIVER_COORDS: [number, number][] = [
   [100.2, 27.2],
   [102.5, 27.8],
   [104.6, 28.8], // 宜宾
   [105.4, 28.9], // 泸州
   [106.5, 29.5], // 重庆
   [107.5, 29.8], // 涪陵
-  [109.57, 31.04], // 白帝城夔门
+  [109.57, 31.04], // 夔州夔门白帝城
   [110.0, 31.1], // 巫峡
   [111.3, 30.7], // 宜昌
   [112.2, 30.3], // 荆州
   [113.1, 29.4], // 岳阳洞庭湖
-  [114.3, 30.54], // 武汉江夏
+  [114.3, 30.54], // 武汉江夏黄鹤楼
   [115.98, 29.72], // 九江浔阳/鄱阳湖
   [117.0, 30.5], // 安庆
   [118.4, 31.3], // 芜湖
-  [118.79, 32.06], // 南京
-  [119.41, 32.39], // 扬州
+  [118.79, 32.06], // 金陵南京
+  [119.41, 32.39], // 广陵扬州
   [120.8, 31.8],
   [121.8, 31.23], // 入东海
 ];
 
-const GRAND_CANAL_LNG_LAT: [number, number][] = [
+// 隋唐两宋大运河 (洛阳/汴京 - 淮安 - 广陵扬州 - 苏州 - 杭州)
+const GRAND_CANAL_COORDS: [number, number][] = [
   [112.45, 34.62], // 洛阳
   [114.34, 34.79], // 开封
   [117.0, 33.8],
@@ -77,530 +148,176 @@ const GRAND_CANAL_LNG_LAT: [number, number][] = [
   [120.15, 30.27], // 杭州
 ];
 
-// 地理经纬度向三维沙盘坐标系转换 (X-Z 平面，Y 轴为高程)
-// 地图范围：经度 98°E ~ 124°E，纬度 20°N ~ 42°N
-const MAP_WIDTH = 100;
-const MAP_DEPTH = 78;
-const MIN_LNG = 98.0;
-const MAX_LNG = 124.0;
-const MIN_LAT = 20.0;
-const MAX_LAT = 42.0;
-
-export function geoTo3D(lng: number, lat: number): { x: number; z: number } {
-  const normX = (lng - MIN_LNG) / (MAX_LNG - MIN_LNG);
-  const normZ = (lat - MIN_LAT) / (MAX_LAT - MIN_LAT);
-
-  const x = (normX - 0.5) * MAP_WIDTH;
-  const z = -(normZ - 0.5) * MAP_DEPTH; // 北为 -Z，南为 +Z
-  return { x, z };
-}
-
-// 模拟中国地形真实高程函数 (三大阶梯、秦岭横亘、巴蜀盆地凹陷、东部平原与沧海)
-function calculateElevation(x: number, z: number, reliefMultiplier: number = 1.0): number {
-  const normX = (x / MAP_WIDTH) + 0.5; // 0 (西) ~ 1 (东)
-  const normZ = (-z / MAP_DEPTH) + 0.5; // 0 (南) ~ 1 (北)
-
-  // 1. 中国三大阶梯基础倾角 (西高东低)
-  let h = 0;
-  if (normX < 0.25) {
-    // 青藏高原与西部高山
-    h = 5.2 + Math.sin(normX * 12) * 1.5 + Math.cos(normZ * 10) * 1.2;
-  } else if (normX < 0.55) {
-    // 第二阶梯黄土高原、云贵、内蒙高原
-    h = 2.4 + Math.sin(normX * 8 + 1) * 0.9 + Math.cos(normZ * 6) * 0.7;
-  } else {
-    // 第三阶梯平原与丘陵
-    h = 0.5 + Math.sin(normX * 6) * 0.35 + Math.cos(normZ * 5) * 0.3;
-  }
-
-  // 2. 秦岭与大巴山脉天险 (约 lat 33.5°~34.5°，normZ 约 0.62~0.68，normX 约 0.32~0.60)
-  const qinlingZDist = Math.abs(normZ - 0.65);
-  if (qinlingZDist < 0.08 && normX > 0.28 && normX < 0.62) {
-    const qinlingFactor = Math.cos((qinlingZDist / 0.08) * (Math.PI / 2));
-    h += 3.8 * qinlingFactor * Math.sin((normX - 0.28) / 0.34 * Math.PI);
-  }
-
-  // 3. 太行山脉 (normX 约 0.55~0.60，normZ 约 0.70~0.92)
-  const taihangXDist = Math.abs(normX - 0.57);
-  if (taihangXDist < 0.04 && normZ > 0.70 && normZ < 0.92) {
-    const taihangFactor = Math.cos((taihangXDist / 0.04) * (Math.PI / 2));
-    h += 2.8 * taihangFactor;
-  }
-
-  // 4. 四川盆地凹陷 (normX 约 0.20~0.33，normZ 约 0.44~0.58)
-  const sichuanCenterDist = Math.hypot(normX - 0.265, normZ - 0.51);
-  if (sichuanCenterDist < 0.11) {
-    const basinDepression = Math.cos((sichuanCenterDist / 0.11) * (Math.PI / 2)) * 2.2;
-    h = Math.max(0.9, h - basinDepression);
-  }
-
-  // 5. 巫山与三峡峡谷突起 (normX 约 0.42~0.47，normZ 约 0.48~0.53)
-  const wushanDist = Math.hypot(normX - 0.44, normZ - 0.50);
-  if (wushanDist < 0.05) {
-    h += 2.5 * Math.cos((wushanDist / 0.05) * (Math.PI / 2));
-  }
-
-  // 6. 东部海岸线与东海/黄海下陷 (normX > 0.88 或东南部)
-  if (normX > 0.82) {
-    const coastalSlope = (normX - 0.82) / 0.18;
-    h = h * Math.max(0, 1 - coastalSlope * 1.3);
-  }
-
-  // 7. 高山与峰峦微扰 (高频纹理，增添山河立体层次)
-  const mountainRuggedness =
-    Math.sin(x * 0.45) * Math.cos(z * 0.45) * 0.35 +
-    Math.sin(x * 0.9 + 1.2) * Math.cos(z * 0.8 + 0.5) * 0.18;
-
-  const finalHeight = Math.max(0.12, (h + mountainRuggedness) * reliefMultiplier);
-  return finalHeight;
-}
-
-// 根据高度与坡度计算水墨新东方青绿着色
-function getTerrainColor(height: number, normX: number): THREE.Color {
-  // 海洋与潮间滩涂
-  if (normX > 0.88 && height < 0.3) {
-    return new THREE.Color(0x0f766e); // 沧海青碧
-  }
-  // 平原与江南水乡 (低海拔)
-  if (height < 1.4) {
-    // 晨露草木新绿与浅青瓷
-    return new THREE.Color(0xd7e7dd).lerp(new THREE.Color(0xb5d6c3), height / 1.4);
-  }
-  // 丘陵与中原腹地 (中低海拔)
-  if (height < 3.2) {
-    return new THREE.Color(0xb5d6c3).lerp(new THREE.Color(0x739c82), (height - 1.4) / 1.8);
-  }
-  // 崇山峻岭与秦岭太行 (中高海拔)
-  if (height < 5.5) {
-    return new THREE.Color(0x739c82).lerp(new THREE.Color(0x355345), (height - 3.2) / 2.3);
-  }
-  // 西部高原与雪峰崖壁 (最高海拔)
-  return new THREE.Color(0x355345).lerp(new THREE.Color(0xedf2f0), Math.min(1.0, (height - 5.5) / 2.5));
-}
+// 历史真实官道陆路路网 (连接十六大名城，角色移动路径依托)
+const ANCIENT_ROADS: Array<[string, string]> = [
+  ['chang_an', 'jiangyou'], // 剑阁蜀道 (连通关中与巴蜀)
+  ['jiangyou', 'chengdu'], // 锦官城官道
+  ['chengdu', 'kuizhou'], // 巴峡道
+  ['chang_an', 'luoyang'], // 两京官道 (经潼关)
+  ['luoyang', 'bianjing'], // 中原官道
+  ['luoyang', 'taiyuan'], // 晋阳官道
+  ['bianjing', 'youzhou'], // 幽燕北道
+  ['bianjing', 'guangling'], // 汴河运道
+  ['kuizhou', 'jiangxia'], // 荆楚江道
+  ['jiangxia', 'xunyang'], // 浔阳江路
+  ['xunyang', 'jinling'], // 江南江道
+  ['xunyang', 'guangzhou'], // 大庾岭南岭官道
+  ['jinling', 'guangling'], // 渡江路
+  ['jinling', 'jingxian'], // 宣城桃花潭路
+  ['guangling', 'gusu'], // 江南水驿
+  ['gusu', 'linan'], // 钱塘官道
+];
 
 export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   currentLocation,
   dynasty,
   onTravel,
+  currentYear: currentYearProp,
 }) => {
-  const mountRef = useRef<HTMLDivElement>(null);
+  // 地图缩放与平移变换
+  const [transform, setTransform] = useState({ x: -150, y: -80, scale: 1.0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 选中的城市人文详情弹窗
   const [activeCityDetail, setActiveCityDetail] = useState<CityCulturalData | null>(null);
 
-  // 视角模式与状态
-  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
-  const [reliefLevel, setReliefLevel] = useState<number>(1.2); // 地形立体强化倍率
-  const [screenCoords, setScreenCoords] = useState<Record<string, { x: number; y: number; visible: boolean }>>({});
+  // 选中的同行诗人详情浮窗
+  const [selectedPoetDossier, setSelectedPoetDossier] = useState<{
+    poet: WorldPoet;
+    cityId: string;
+    cityName: string;
+    status: string;
+    recentWork?: string;
+    age: number;
+  } | null>(null);
 
-  // Three.js 核心对象引用保存
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const terrainMeshRef = useRef<THREE.Mesh | null>(null);
-  const beaconGroupRef = useRef<THREE.Group | null>(null);
-  const currentPinRippleRef = useRef<THREE.Mesh | null>(null);
-  const animFrameIdRef = useRef<number>(0);
+  // 玩家角色平滑移动位置 (李白)
+  const [playerPixelPos, setPlayerPixelPos] = useState<{ x: number; y: number }>({ x: 406, y: 442 });
+  const [isTraveling, setIsTraveling] = useState(false);
 
-  // 交互控制状态
-  const isDraggingRef = useRef(false);
-  const isRightDraggingRef = useRef(false);
-  const previousMousePositionRef = useRef({ x: 0, y: 0 });
-  const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, -2));
-  const cameraSphericalRef = useRef({
-    radius: 95,
-    theta: 0, // 水平方位角
-    phi: Math.PI / 3.4, // 俯仰倾斜角 (约 53度 3D 鸟瞰)
-  });
+  // 当前年份 (优先采用全局游戏年份，若无则使用代表性高光年份)
+  const currentYear = useMemo(() => {
+    if (currentYearProp) return currentYearProp;
+    return dynasty === 'tang' ? 744 : 1082;
+  }, [currentYearProp, dynasty]);
 
-  // 更新相机位置
-  const updateCameraPosition = useCallback(() => {
-    if (!cameraRef.current) return;
-    const { radius, theta, phi } = cameraSphericalRef.current;
-    const target = cameraTargetRef.current;
+  // 获取世界纪事播报
+  const chronicles = useMemo(() => getChroniclesUpToYear(dynasty, currentYear), [dynasty, currentYear]);
+  const activeHighlight = useMemo(() => getCurrentYearHighlight(dynasty, currentYear), [dynasty, currentYear]);
 
-    const x = target.x + radius * Math.sin(phi) * Math.sin(theta);
-    const y = target.y + radius * Math.cos(phi);
-    const z = target.z + radius * Math.sin(phi) * Math.cos(theta);
+  // 获取同时代其他文人历史坐标
+  const otherPoets = useMemo(() => {
+    return getPoetLocationsAtYear(dynasty, currentYear, dynasty === 'tang' ? 'li_bai' : 'su_shi');
+  }, [dynasty, currentYear]);
 
-    cameraRef.current.position.set(x, y, z);
-    cameraRef.current.lookAt(target);
+  // 城市坐标映射表
+  const cityPixelMap = useMemo(() => {
+    const map: Record<string, { x: number; y: number }> = {};
+    Object.values(MAJOR_CITIES).forEach((c) => {
+      map[c.id] = projectGeo(c.coordinates[0], c.coordinates[1]);
+    });
+    // 兼容别名
+    map['sichuan'] = map['jiangyou'] || map['chengdu'];
+    map['huanghelou'] = map['jiangxia'];
+    map['lu_shan'] = map['xunyang'];
+    map['baidicheng'] = map['kuizhou'];
+    map['yangzhou'] = map['guangling'];
+    return map;
   }, []);
 
-  // 重置视角
-  const handleResetView = useCallback(() => {
-    cameraTargetRef.current.set(0, 0, -2);
-    if (viewMode === '3d') {
-      cameraSphericalRef.current = {
-        radius: 95,
-        theta: 0,
-        phi: Math.PI / 3.4,
-      };
-    } else {
-      cameraSphericalRef.current = {
-        radius: 100,
-        theta: 0,
-        phi: 0.01, // 接近垂直正俯视
-      };
-    }
-    updateCameraPosition();
-  }, [viewMode, updateCameraPosition]);
-
-  // 切换 3D 沙盘视角 vs 2D 顶视地图
-  const toggleViewMode = useCallback(() => {
-    const nextMode = viewMode === '3d' ? '2d' : '3d';
-    setViewMode(nextMode);
-    if (nextMode === '2d') {
-      cameraSphericalRef.current.phi = 0.01;
-      cameraSphericalRef.current.theta = 0;
-    } else {
-      cameraSphericalRef.current.phi = Math.PI / 3.4;
-    }
-    updateCameraPosition();
-  }, [viewMode, updateCameraPosition]);
-
-  // 放大
-  const handleZoomIn = () => {
-    cameraSphericalRef.current.radius = Math.max(35, cameraSphericalRef.current.radius * 0.82);
-    updateCameraPosition();
-  };
-
-  // 缩小
-  const handleZoomOut = () => {
-    cameraSphericalRef.current.radius = Math.min(150, cameraSphericalRef.current.radius * 1.22);
-    updateCameraPosition();
-  };
-
-  // 切换地形高程强化
-  const toggleRelief = () => {
-    setReliefLevel((prev) => (prev >= 1.5 ? 1.0 : prev + 0.3));
-  };
-
-  // =========================================================================
-  // Three.js 场景初始化与生命周期
-  // =========================================================================
+  // 当当前所处地点变化时，执行平滑移动动画
   useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
+    const target = cityPixelMap[currentLocation.id] || cityPixelMap['chang_an'];
+    if (!target) return;
 
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 600;
+    setIsTraveling(true);
+    const startX = playerPixelPos.x;
+    const startY = playerPixelPos.y;
+    const destX = target.x;
+    const destY = target.y;
 
-    // 1. Scene
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    scene.background = new THREE.Color(0xf3f7f4); // 晨露微冷白底色
+    const startTime = performance.now();
+    const duration = 1100; // 1.1s 平滑行旅
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
-    cameraRef.current = camera;
-    updateCameraPosition();
+    const animateStep = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      // easeInOutCubic 曲线
+      const ease =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-    // 3. WebGL Renderer
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'high-performance',
-      alpha: true,
-    });
-    rendererRef.current = renderer;
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    // 清理旧 canvas 并挂载
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
-    // 4. 灯光系统 (模拟晴空日照与山间柔和天光)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
-
-    // 主方向光 (斜射阳光，刻画山脉阴影)
-    const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.35);
-    sunLight.position.set(45, 80, 50);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 10;
-    sunLight.shadow.camera.far = 200;
-    const shadowDist = 65;
-    sunLight.shadow.camera.left = -shadowDist;
-    sunLight.shadow.camera.right = shadowDist;
-    sunLight.shadow.camera.top = shadowDist;
-    sunLight.shadow.camera.bottom = -shadowDist;
-    sunLight.shadow.bias = -0.0005;
-    scene.add(sunLight);
-
-    // 辅助补光 (来自背面的柔和青绿天光)
-    const fillLight = new THREE.DirectionalLight(0xccfbf1, 0.45);
-    fillLight.position.set(-50, 40, -40);
-    scene.add(fillLight);
-
-    // 5. 三维沙盘台座 (沙盘基座木质/墨玉底座)
-    const pedestalGeo = new THREE.BoxGeometry(MAP_WIDTH + 4, 3, MAP_DEPTH + 4);
-    const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0x1b2823, // 墨绿青铜玉质底座
-      roughness: 0.6,
-      metalness: 0.2,
-    });
-    const pedestalMesh = new THREE.Mesh(pedestalGeo, pedestalMat);
-    pedestalMesh.position.set(0, -1.6, 0);
-    pedestalMesh.receiveShadow = true;
-    scene.add(pedestalMesh);
-
-    // 金玉台座内线装饰边框
-    const frameGeo = new THREE.BoxGeometry(MAP_WIDTH + 0.8, 0.3, MAP_DEPTH + 0.8);
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0xb45309, // 沉古金描边
-      roughness: 0.3,
-      metalness: 0.7,
-    });
-    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-    frameMesh.position.set(0, -0.15, 0);
-    scene.add(frameMesh);
-
-    // 6. 三维地形曲面 (细分网格 + 顶点高度计算 + 顶点着色)
-    const segX = 120;
-    const segZ = 90;
-    const terrainGeo = new THREE.PlaneGeometry(MAP_WIDTH, MAP_DEPTH, segX, segZ);
-    terrainGeo.rotateX(-Math.PI / 2); // 旋转平卧在 X-Z 平面
-
-    const posAttr = terrainGeo.attributes.position;
-    const colors: number[] = [];
-
-    for (let i = 0; i < posAttr.count; i++) {
-      const vx = posAttr.getX(i);
-      const vz = posAttr.getZ(i);
-
-      // 计算地形真实高程
-      const vy = calculateElevation(vx, vz, reliefLevel);
-      posAttr.setY(i, vy);
-
-      // 计算顶点青绿着色
-      const normX = vx / MAP_WIDTH + 0.5;
-      const c = getTerrainColor(vy, normX);
-      colors.push(c.r, c.g, c.b);
-    }
-
-    terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    terrainGeo.computeVertexNormals();
-
-    const terrainMat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.82,
-      metalness: 0.08,
-      flatShading: false,
-    });
-    const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
-    terrainMesh.castShadow = true;
-    terrainMesh.receiveShadow = true;
-    scene.add(terrainMesh);
-    terrainMeshRef.current = terrainMesh;
-
-    // 7. 三维江海水体雕刻 (黄河泥金光流、长江碧水东流、运河水系)
-    const create3DRiver = (coords: [number, number][], colorHex: number, riverRadius: number) => {
-      const pts3D: THREE.Vector3[] = coords.map(([lng, lat]) => {
-        const { x, z } = geoTo3D(lng, lat);
-        const y = calculateElevation(x, z, reliefLevel) + 0.16; // 贴地略微浮起
-        return new THREE.Vector3(x, y, z);
+      setPlayerPixelPos({
+        x: startX + (destX - startX) * ease,
+        y: startY + (destY - startY) * ease,
       });
 
-      const curve = new THREE.CatmullRomCurve3(pts3D);
-      const tubeGeo = new THREE.TubeGeometry(curve, 100, riverRadius, 8, false);
-      const tubeMat = new THREE.MeshStandardMaterial({
-        color: colorHex,
-        roughness: 0.2,
-        metalness: 0.3,
-        emissive: colorHex,
-        emissiveIntensity: 0.25,
-      });
-      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
-      scene.add(tubeMesh);
-      return tubeMesh;
-    };
-
-    // 黄河之水天上来 (泥金色)
-    create3DRiver(YELLOW_RIVER_LNG_LAT, 0xd97706, 0.42);
-    // 万里长江浩荡东去 (碧水青玉色)
-    create3DRiver(YANGTZE_RIVER_LNG_LAT, 0x0d9488, 0.46);
-    // 京杭大运河 (青翠翡翠色)
-    create3DRiver(GRAND_CANAL_LNG_LAT, 0x059669, 0.24);
-
-    // 8. 名城三维地标灯柱组 (Beacons Group)
-    const beaconGroup = new THREE.Group();
-    scene.add(beaconGroup);
-    beaconGroupRef.current = beaconGroup;
-
-    Object.values(MAJOR_CITIES).forEach((city) => {
-      const { x, z } = geoTo3D(city.coordinates[0], city.coordinates[1]);
-      const y = calculateElevation(x, z, reliefLevel);
-
-      const isCurrent =
-        city.id === currentLocation.id ||
-        (currentLocation.name_cn && city.name_cn.includes(currentLocation.name_cn));
-
-      // 3D 柱体
-      const pillarGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.2, 8);
-      const pillarMat = new THREE.MeshStandardMaterial({
-        color: isCurrent ? 0xb45309 : 0x047857,
-        emissive: isCurrent ? 0xb45309 : 0x047857,
-        emissiveIntensity: isCurrent ? 0.6 : 0.25,
-        roughness: 0.3,
-      });
-      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-      pillar.position.set(x, y + 1.1, z);
-      beaconGroup.add(pillar);
-
-      // 柱顶发光光珠
-      const orbGeo = new THREE.SphereGeometry(isCurrent ? 0.65 : 0.45, 12, 12);
-      const orbMat = new THREE.MeshStandardMaterial({
-        color: isCurrent ? 0xf59e0b : 0x10b981,
-        emissive: isCurrent ? 0xf59e0b : 0x059669,
-        emissiveIntensity: 0.8,
-      });
-      const orb = new THREE.Mesh(orbGeo, orbMat);
-      orb.position.set(x, y + 2.3, z);
-      beaconGroup.add(orb);
-
-      // 当前所在地的呼吸光环
-      if (isCurrent) {
-        const ringGeo = new THREE.RingGeometry(0.8, 1.4, 24);
-        ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: 0xb45309,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
-        });
-        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-        ringMesh.position.set(x, y + 0.1, z);
-        beaconGroup.add(ringMesh);
-        currentPinRippleRef.current = ringMesh;
+      if (progress < 1.0) {
+        requestAnimationFrame(animateStep);
+      } else {
+        setIsTraveling(false);
       }
+    };
+
+    requestAnimationFrame(animateStep);
+  }, [currentLocation.id, cityPixelMap]);
+
+  // 聚焦定位某个城市 (点击世界纪事或名城标签时平滑居中)
+  const handleFocusCity = useCallback((cityId: string) => {
+    const pt = cityPixelMap[cityId] || cityPixelMap['chang_an'];
+    if (!pt || !containerRef.current) return;
+
+    const containerW = containerRef.current.clientWidth;
+    const containerH = containerRef.current.clientHeight;
+
+    const targetScale = 1.35;
+    const targetX = containerW / 2 - pt.x * targetScale;
+    const targetY = containerH / 2 - pt.y * targetScale;
+
+    setTransform({
+      x: targetX,
+      y: targetY,
+      scale: targetScale,
     });
 
-    // 9. 动画与渲染循环 (实时计算 3D 标签向 2D 屏幕投影)
-    let animationTime = 0;
-    const renderLoop = () => {
-      animationTime += 0.025;
-
-      // 当前所在地光环呼吸动效
-      if (currentPinRippleRef.current) {
-        const scale = 1.0 + Math.sin(animationTime * 3) * 0.35;
-        currentPinRippleRef.current.scale.set(scale, scale, scale);
-      }
-
-      renderer.render(scene, camera);
-
-      // 计算所有名城在 2D 屏幕坐标系中的投影位置
-      const nextCoords: Record<string, { x: number; y: number; visible: boolean }> = {};
-      const halfW = container.clientWidth / 2;
-      const halfH = container.clientHeight / 2;
-
-      Object.values(MAJOR_CITIES).forEach((city) => {
-        const { x, z } = geoTo3D(city.coordinates[0], city.coordinates[1]);
-        const y = calculateElevation(x, z, reliefLevel) + 2.8;
-
-        const pos = new THREE.Vector3(x, y, z);
-        pos.project(camera);
-
-        // 判断是否在屏幕正面视野内
-        const isVisible = pos.z < 1.0 && pos.x >= -1.2 && pos.x <= 1.2 && pos.y >= -1.2 && pos.y <= 1.2;
-
-        nextCoords[city.id] = {
-          x: pos.x * halfW + halfW,
-          y: -pos.y * halfH + halfH,
-          visible: isVisible,
-        };
-      });
-
-      setScreenCoords(nextCoords);
-      animFrameIdRef.current = requestAnimationFrame(renderLoop);
-    };
-
-    renderLoop();
-
-    // 10. 视口大小自适应监听
-    const handleResize = () => {
-      if (!container || !rendererRef.current || !cameraRef.current) return;
-      const nw = container.clientWidth;
-      const nh = container.clientHeight;
-      cameraRef.current.aspect = nw / nh;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(nw, nh);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      cancelAnimationFrame(animFrameIdRef.current);
-      window.removeEventListener('resize', handleResize);
-      renderer.dispose();
-      terrainGeo.dispose();
-      pedestalGeo.dispose();
-      frameGeo.dispose();
-    };
-  }, [reliefLevel, currentLocation, updateCameraPosition]);
-
-  // =========================================================================
-  // 鼠标与触控漫游交互事件处理
-  // =========================================================================
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      isDraggingRef.current = true;
-    } else if (e.button === 2) {
-      isRightDraggingRef.current = true;
+    const cityObj = MAJOR_CITIES[cityId];
+    if (cityObj) {
+      setActiveCityDetail(cityObj);
     }
-    previousMousePositionRef.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const deltaX = e.clientX - previousMousePositionRef.current.x;
-    const deltaY = e.clientY - previousMousePositionRef.current.y;
-    previousMousePositionRef.current = { x: e.clientX, y: e.clientY };
-
-    // 左键拖拽：在 X-Z 地图平面平移
-    if (isDraggingRef.current) {
-      const panSpeed = cameraSphericalRef.current.radius * 0.0012;
-      const theta = cameraSphericalRef.current.theta;
-
-      // 根据当前朝向计算世界坐标平移
-      const moveX = (-deltaX * Math.cos(theta) - deltaY * Math.sin(theta)) * panSpeed;
-      const moveZ = (deltaX * Math.sin(theta) - deltaY * Math.cos(theta)) * panSpeed;
-
-      cameraTargetRef.current.x = Math.max(-45, Math.min(45, cameraTargetRef.current.x + moveX));
-      cameraTargetRef.current.z = Math.max(-35, Math.min(35, cameraTargetRef.current.z + moveZ));
-      updateCameraPosition();
-    }
-
-    // 右键拖拽（或按住 Shift 左键拖拽）：旋转水平方位角与俯仰角
-    if (isRightDraggingRef.current || (isDraggingRef.current && e.shiftKey)) {
-      const rotSpeed = 0.006;
-      cameraSphericalRef.current.theta -= deltaX * rotSpeed;
-      cameraSphericalRef.current.phi = Math.max(
-        0.05,
-        Math.min(Math.PI / 2.1, cameraSphericalRef.current.phi + deltaY * rotSpeed)
-      );
-      updateCameraPosition();
-    }
-  };
-
-  const handleMouseUp = () => {
-    isDraggingRef.current = false;
-    isRightDraggingRef.current = false;
-  };
+  }, [cityPixelMap]);
 
   // 鼠标滚轮缩放
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 0.9 : 1.11;
-    cameraSphericalRef.current.radius = Math.max(
-      32,
-      Math.min(145, cameraSphericalRef.current.radius * zoomFactor)
-    );
-    updateCameraPosition();
+    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+    setTransform((prev) => ({
+      ...prev,
+      scale: Math.min(2.8, Math.max(0.65, prev.scale * zoomFactor)),
+    }));
   };
 
-  // 移动端单指平移与双指捏合缩放
+  // 鼠标拖拽平移
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setTransform((prev) => ({
+      ...prev,
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y,
+    }));
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  // 移动端手势
   const touchStartDistRef = useRef<number | null>(null);
   const touchLastPosRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -621,26 +338,22 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       const deltaY = e.touches[0].clientY - touchLastPosRef.current.y;
       touchLastPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-      const panSpeed = cameraSphericalRef.current.radius * 0.0012;
-      const theta = cameraSphericalRef.current.theta;
-      const moveX = (-deltaX * Math.cos(theta) - deltaY * Math.sin(theta)) * panSpeed;
-      const moveZ = (deltaX * Math.sin(theta) - deltaY * Math.cos(theta)) * panSpeed;
-
-      cameraTargetRef.current.x = Math.max(-45, Math.min(45, cameraTargetRef.current.x + moveX));
-      cameraTargetRef.current.z = Math.max(-35, Math.min(35, cameraTargetRef.current.z + moveZ));
-      updateCameraPosition();
+      setTransform((prev) => ({
+        ...prev,
+        x: prev.x + deltaX,
+        y: prev.y + deltaY,
+      }));
     } else if (e.touches.length === 2 && touchStartDistRef.current !== null) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
       if (dist > 10) {
-        const factor = touchStartDistRef.current / dist;
+        const factor = dist / touchStartDistRef.current;
         touchStartDistRef.current = dist;
-        cameraSphericalRef.current.radius = Math.max(
-          32,
-          Math.min(145, cameraSphericalRef.current.radius * factor)
-        );
-        updateCameraPosition();
+        setTransform((prev) => ({
+          ...prev,
+          scale: Math.min(2.8, Math.max(0.65, prev.scale * factor)),
+        }));
       }
     }
   };
@@ -650,12 +363,20 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     touchStartDistRef.current = null;
   };
 
+  // 缩放控制按钮
+  const zoomIn = () =>
+    setTransform((prev) => ({ ...prev, scale: Math.min(2.8, prev.scale * 1.25) }));
+  const zoomOut = () =>
+    setTransform((prev) => ({ ...prev, scale: Math.max(0.65, prev.scale / 1.25) }));
+  const resetView = () => setTransform({ x: -150, y: -80, scale: 1.0 });
+
   // 城市列表
   const cityList = Object.values(MAJOR_CITIES);
 
   return (
     <div
-      className="relative w-full h-full flex-1 overflow-hidden select-none bg-[#F4F7F3] touch-none"
+      ref={containerRef}
+      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -664,17 +385,258 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      onContextMenu={(e) => e.preventDefault()}
-      onWheel={handleWheel}
+      className={`relative w-full h-full flex-1 overflow-hidden select-none bg-[#F5F8F3] touch-none ${
+        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+      }`}
     >
-      {/* 1. WebGL 3D 渲染挂载画布 */}
-      <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
+      {/* 1. 顶部悬浮：世界播报风云台 */}
+      <WorldChronicleDrawer
+        currentYear={currentYear}
+        chronicles={chronicles}
+        activeHighlight={activeHighlight}
+        onFocusCity={handleFocusCity}
+      />
 
-      {/* 2. 覆盖层：投影到 2D 视口的全部名城高清玉牌 (黑字锐利，全域探索) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* 2. 核心 2D 古典水墨与工笔山河矢量画布 */}
+      <div
+        style={{
+          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+          transformOrigin: '0 0',
+          transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+        }}
+        className="w-[1400px] h-[950px] relative pointer-events-auto"
+      >
+        <svg
+          viewBox="0 0 1400 950"
+          className="w-full h-full absolute inset-0 pointer-events-none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            {/* 宣纸古绢本底纹 */}
+            <radialGradient id="mapParchmentGlow" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
+              <stop offset="60%" stopColor="#F4F8F3" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#E6EDE4" stopOpacity="0.95" />
+            </radialGradient>
+
+            {/* 黄河泥金波光 */}
+            <linearGradient id="yellowRiverGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.9" />
+              <stop offset="50%" stopColor="#D97706" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#B45309" stopOpacity="0.95" />
+            </linearGradient>
+
+            {/* 长江碧波流光 */}
+            <linearGradient id="yangtzeRiverGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#10B981" stopOpacity="0.9" />
+              <stop offset="50%" stopColor="#0D9488" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#0284C7" stopOpacity="0.95" />
+            </linearGradient>
+
+            {/* 运河翠色 */}
+            <linearGradient id="canalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#059669" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#0D9488" stopOpacity="0.85" />
+            </linearGradient>
+
+            {/* 湖泊水润 */}
+            <radialGradient id="lakeGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#0D9488" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#10B981" stopOpacity="0.2" />
+            </radialGradient>
+          </defs>
+
+          {/* 1. 绢本宣纸底色晕染 */}
+          <rect x="0" y="0" width="1400" height="950" fill="url(#mapParchmentGlow)" />
+
+          {/* 经纬度地理网格暗线 (古代经纬方舆线) */}
+          <g stroke="#047857" strokeWidth="0.5" strokeOpacity="0.1" strokeDasharray="6 6">
+            <line x1="80" y1="200" x2="1320" y2="200" />
+            <line x1="80" y1="400" x2="1320" y2="400" />
+            <line x1="80" y1="600" x2="1320" y2="600" />
+            <line x1="80" y1="800" x2="1320" y2="800" />
+            <line x1="300" y1="80" x2="300" y2="880" />
+            <line x1="600" y1="80" x2="600" y2="880" />
+            <line x1="900" y1="80" x2="900" y2="880" />
+            <line x1="1150" y1="80" x2="1150" y2="880" />
+          </g>
+
+          {/* 2. 东海沧海波澜海域 (水波纹理) */}
+          <path
+            d={`M 1150,80 L 1360,80 L 1360,900 L 900,900 L 980,820 L 1050,750 L 1100,680 L 1140,550 L 1180,480 L 1160,380 L 1220,320 L 1150,220 Z`}
+            fill="#0F766E"
+            fillOpacity="0.08"
+          />
+          <path
+            d={coordsToPath(COASTLINE_COORDS)}
+            fill="none"
+            stroke="#0D9488"
+            strokeWidth="2.5"
+            strokeDasharray="8 5"
+            strokeOpacity="0.5"
+          />
+          <text
+            x="1220"
+            y="420"
+            fill="#0D9488"
+            fontSize="14"
+            letterSpacing="8"
+            className="font-poetry font-bold opacity-40 select-none"
+          >
+            沧海万里 · 东海浩瀚
+          </text>
+
+          {/* 3. 历史各大地理区域水墨意象印鉴 */}
+          <g className="font-poetry font-bold select-none tracking-widest opacity-15">
+            <text x="320" y="440" fontSize="28" fill="#047857">【巴蜀天府】</text>
+            <text x="560" y="290" fontSize="28" fill="#B45309">【关陇京畿】</text>
+            <text x="780" y="270" fontSize="28" fill="#B45309">【中原腹地】</text>
+            <text x="790" y="520" fontSize="28" fill="#0D9488">【荆襄九派】</text>
+            <text x="1080" y="480" fontSize="28" fill="#047857">【烟雨江南】</text>
+            <text x="890" y="160" fontSize="28" fill="#475569">【幽燕大地】</text>
+            <text x="780" y="780" fontSize="28" fill="#047857">【南岭苍茫】</text>
+          </g>
+
+          {/* 4. 工笔水墨山脉群 (峰峦层叠) */}
+          <g className="text-emerald-950 opacity-50" stroke="#064E3B" strokeWidth="1.5" fill="none">
+            {/* 秦岭横亘 (关中南屏) */}
+            <path d="M 520,375 L 545,350 L 570,380 L 595,345 L 620,380 L 650,355 L 680,380" />
+            <text x="580" y="365" fill="#064E3B" fontSize="11" className="font-poetry font-bold opacity-80">
+              ▲ 秦岭天险
+            </text>
+
+            {/* 太行山脉 (中原西屏) */}
+            <path d="M 770,210 L 755,240 L 775,270 L 760,300 L 780,330" />
+            <text x="775" y="260" fill="#064E3B" fontSize="11" className="font-poetry font-bold opacity-80">
+              ▲ 太行山
+            </text>
+
+            {/* 巴山蜀道 / 剑阁天险 */}
+            <path d="M 430,410 L 450,385 L 470,415 L 490,390 L 510,415" />
+            <text x="445" y="405" fill="#064E3B" fontSize="10" className="font-poetry font-bold opacity-75">
+              ▲ 剑阁蜀道
+            </text>
+
+            {/* 巫山三峡 */}
+            <path d="M 640,455 L 655,435 L 670,460 L 685,440 L 700,460" />
+            <text x="655" y="445" fill="#064E3B" fontSize="10" className="font-poetry font-bold opacity-80">
+              ▲ 巫山三峡
+            </text>
+
+            {/* 匡庐秀峰 (庐山) */}
+            <path d="M 915,505 L 930,480 L 945,510" />
+            <text x="920" y="495" fill="#064E3B" fontSize="10" className="font-poetry font-bold opacity-80">
+              ▲ 庐山
+            </text>
+          </g>
+
+          {/* 5. 真实大江大河干流水系 */}
+          {/* 黄河之水天上来 (泥金色) */}
+          <path
+            d={coordsToPath(YELLOW_RIVER_COORDS)}
+            fill="none"
+            stroke="url(#yellowRiverGrad)"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="filter drop-shadow-sm opacity-90"
+          />
+          <text
+            x="720"
+            y="295"
+            fill="#B45309"
+            fontSize="11"
+            className="font-poetry font-bold select-none opacity-80"
+          >
+            黄河之水天上来 ➔
+          </text>
+
+          {/* 万里长江浩荡东去 (碧水青玉色) */}
+          <path
+            d={coordsToPath(YANGTZE_RIVER_COORDS)}
+            fill="none"
+            stroke="url(#yangtzeRiverGrad)"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="filter drop-shadow-sm opacity-95"
+          />
+          <text
+            x="840"
+            y="470"
+            fill="#0D9488"
+            fontSize="11"
+            className="font-poetry font-bold select-none opacity-85"
+          >
+            万里长江浩荡东流 ➔
+          </text>
+
+          {/* 隋唐宋大运河 (通济渠与江南运河) */}
+          <path
+            d={coordsToPath(GRAND_CANAL_COORDS)}
+            fill="none"
+            stroke="url(#canalGrad)"
+            strokeWidth="3.2"
+            strokeDasharray="6 4"
+            strokeLinecap="round"
+            className="opacity-80"
+          />
+          <text
+            x="960"
+            y="370"
+            fill="#059669"
+            fontSize="10"
+            className="font-poetry font-bold select-none opacity-70"
+          >
+            汴河大运河
+          </text>
+
+          {/* 湖泊意象 (洞庭湖、鄱阳湖、太湖) */}
+          {/* 洞庭湖 */}
+          <ellipse cx="795" cy="510" rx="20" ry="14" fill="url(#lakeGrad)" stroke="#0D9488" strokeWidth="1.2" />
+          <text x="780" y="535" fill="#047857" fontSize="9" className="font-poetry font-bold opacity-75">洞庭湖</text>
+          {/* 鄱阳湖 */}
+          <ellipse cx="940" cy="530" rx="16" ry="22" fill="url(#lakeGrad)" stroke="#0D9488" strokeWidth="1.2" />
+          <text x="925" y="560" fill="#047857" fontSize="9" className="font-poetry font-bold opacity-75">鄱阳湖</text>
+          {/* 太湖 */}
+          <ellipse cx="1120" cy="460" rx="22" ry="16" fill="url(#lakeGrad)" stroke="#0D9488" strokeWidth="1.2" />
+          <text x="1105" y="485" fill="#047857" fontSize="9" className="font-poetry font-bold opacity-75">太湖</text>
+
+          {/* 6. 古代官道驿路线网 (角色行动走廊) */}
+          <g stroke="#B45309" strokeWidth="1.6" strokeDasharray="5 4" strokeOpacity="0.45" fill="none">
+            {ANCIENT_ROADS.map(([c1, c2], idx) => {
+              const p1 = cityPixelMap[c1];
+              const p2 = cityPixelMap[c2];
+              if (!p1 || !p2) return null;
+              return (
+                <line
+                  key={idx}
+                  x1={p1.x}
+                  y1={p1.y}
+                  x2={p2.x}
+                  y2={p2.y}
+                />
+              );
+            })}
+          </g>
+
+          {/* 7. 司南罗盘 (左下角) */}
+          <g transform="translate(180, 830)" className="opacity-60 select-none">
+            <circle cx="0" cy="0" r="32" fill="none" stroke="#047857" strokeWidth="1.5" strokeDasharray="4 4" />
+            <circle cx="0" cy="0" r="24" fill="none" stroke="#B45309" strokeWidth="1.2" />
+            <line x1="0" y1="-32" x2="0" y2="32" stroke="#047857" strokeWidth="1.8" />
+            <line x1="-32" y1="0" x2="32" y2="0" stroke="#047857" strokeWidth="1.8" />
+            <text x="-4" y="-36" fill="#047857" fontSize="11" className="font-poetry font-bold">北</text>
+            <text x="-4" y="44" fill="#047857" fontSize="11" className="font-poetry">南</text>
+            <text x="36" y="4" fill="#047857" fontSize="11" className="font-poetry">东</text>
+            <text x="-46" y="4" fill="#047857" fontSize="11" className="font-poetry">西</text>
+          </g>
+        </svg>
+
+        {/* 8. 名城地标节点印鉴 (高对比度清秀楼阁玉牌) */}
         {cityList.map((city) => {
-          const coords = screenCoords[city.id];
-          if (!coords || !coords.visible) return null;
+          const pt = cityPixelMap[city.id];
+          if (!pt) return null;
 
           const isCurrent =
             city.id === currentLocation.id ||
@@ -682,119 +644,247 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
           const dynastyData = dynasty === 'tang' ? city.tang : city.song;
           const dynastyName = dynastyData.name || city.name_cn;
 
+          // 统计在当前城市的其他文人
+          const poetsHere = otherPoets.filter((p) => p.currentCityId === city.id);
+
           return (
             <div
               key={city.id}
               style={{
-                left: `${coords.x}px`,
-                top: `${coords.y}px`,
-                transform: 'translate(-50%, -100%)',
+                left: `${pt.x}px`,
+                top: `${pt.y}px`,
+                transform: 'translate(-50%, -50%)',
               }}
-              className="absolute pointer-events-auto z-20"
+              className="absolute z-20"
             >
+              {/* 当前所在地的呼吸发光波纹 */}
+              {isCurrent && (
+                <div className="absolute -inset-4 rounded-full bg-emerald-500/25 animate-ping pointer-events-none" />
+              )}
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveCityDetail(city);
                 }}
-                className={`group relative flex flex-col items-center transition-transform duration-200 ${
-                  isCurrent ? 'scale-110 z-30' : 'hover:scale-115 hover:z-25'
+                className={`group relative flex flex-col items-center transition-all duration-200 cursor-pointer ${
+                  isCurrent ? 'scale-115 z-30' : 'hover:scale-110 hover:z-25'
                 }`}
               >
-                {/* 城市名牌 (深黑色文字，极高对比度，告别发虚发白) */}
+                {/* 城池建筑印章图标 */}
                 <div
-                  className={`flex items-center space-x-1 px-2.5 py-1 rounded-full font-poetry whitespace-nowrap shadow-md border backdrop-blur-md transition-all ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-md transition-all border ${
                     isCurrent
-                      ? 'bg-amber-600 text-white border-amber-300 font-bold shadow-amber-500/30 ring-2 ring-white/80'
-                      : 'bg-white/95 text-[#09131C] border-emerald-700/40 font-semibold group-hover:border-emerald-600 group-hover:bg-emerald-50'
+                      ? 'bg-gradient-to-br from-emerald-700 to-teal-800 text-white border-emerald-300 ring-2 ring-white/90 shadow-emerald-700/40'
+                      : 'bg-white text-emerald-800 border-slate-300 group-hover:border-emerald-600 group-hover:bg-emerald-50'
                   }`}
                 >
-                  <MapPin
-                    className={`w-3 h-3 ${isCurrent ? 'text-white' : 'text-emerald-700'}`}
-                  />
-                  <span className="text-xs tracking-wide">{dynastyName}</span>
+                  <MapPin className="w-3.5 h-3.5" />
                 </div>
 
-                {/* 底部定位针尖小倒三角 */}
+                {/* 城市名牌 (极高对比度纯正黑墨色，拒绝发虚发白) */}
                 <div
-                  className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] ${
-                    isCurrent ? 'border-t-amber-600' : 'border-t-white/95'
+                  className={`mt-1 text-xs px-2.5 py-0.5 rounded-full font-poetry whitespace-nowrap shadow-md border transition-all ${
+                    isCurrent
+                      ? 'bg-emerald-800 text-white border-emerald-600 font-bold shadow-emerald-800/20'
+                      : 'bg-white/98 text-[#09131C] border-slate-300/90 font-semibold group-hover:border-emerald-600 group-hover:text-emerald-900'
                   }`}
-                />
+                >
+                  <span>{dynastyName}</span>
+                </div>
+
+                {/* 同城文人会聚微标 */}
+                {poetsHere.length > 0 && (
+                  <div className="absolute -top-1 -right-2 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full border border-white shadow-sm flex items-center space-x-0.5">
+                    <Users className="w-2.5 h-2.5" />
+                    <span>{poetsHere.length}</span>
+                  </div>
+                )}
               </button>
             </div>
           );
         })}
+
+        {/* 9. 多文人自主漫游棋子层 (同时代文人在各自时间线自主行历) */}
+        {otherPoets.map(({ poet, currentCityId, status, recentWork, age, isAlive }) => {
+          if (!isAlive) return null;
+          const cityPt = cityPixelMap[currentCityId];
+          if (!cityPt) return null;
+
+          // 为避免同城文人完全重叠，稍微进行径向偏移
+          const offsetSeed = poet.id.charCodeAt(0) % 5;
+          const offsetX = (offsetSeed - 2) * 18 + 12;
+          const offsetY = (offsetSeed % 2 === 0 ? -1 : 1) * 22;
+
+          return (
+            <div
+              key={poet.id}
+              style={{
+                left: `${cityPt.x + offsetX}px`,
+                top: `${cityPt.y + offsetY}px`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              className="absolute z-25 transition-all duration-700 ease-out"
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPoetDossier({
+                    poet,
+                    cityId: currentCityId,
+                    cityName: MAJOR_CITIES[currentCityId]?.name_cn || currentCityId,
+                    status,
+                    recentWork,
+                    age,
+                  });
+                }}
+                title={`${poet.name} (${age}岁) 正在此地：${status}`}
+                className="group relative flex flex-col items-center cursor-pointer transition-transform hover:scale-125"
+              >
+                {/* 文人头像小棋子印章 */}
+                <div
+                  style={{ backgroundColor: poet.color }}
+                  className="w-7 h-7 rounded-full text-white font-bold text-[10px] font-poetry flex items-center justify-center shadow-lg border-2 border-white ring-1 ring-slate-300"
+                >
+                  {poet.avatarText}
+                </div>
+
+                {/* 悬浮文人姓名小微标 */}
+                <span className="mt-0.5 px-1.5 py-0.2 rounded bg-slate-900/90 text-white text-[9px] font-poetry whitespace-nowrap shadow opacity-85 group-hover:opacity-100">
+                  {poet.name}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+
+        {/* 10. 玩家主角 (李白/苏轼) 当前动态行历棋子 (带平滑游历路径与光环) */}
+        <div
+          style={{
+            left: `${playerPixelPos.x}px`,
+            top: `${playerPixelPos.y}px`,
+            transform: 'translate(-50%, -50%)',
+            transition: isTraveling ? 'none' : 'transform 0.2s',
+          }}
+          className="absolute z-30 pointer-events-none"
+        >
+          {/* 行历足迹光晕 */}
+          <div className="absolute -inset-3 rounded-full bg-amber-500/30 animate-ping" />
+
+          <div className="relative flex flex-col items-center">
+            {/* 主角金色印章 */}
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white flex items-center justify-center font-poetry font-bold text-xs shadow-xl border-2 border-amber-200 ring-2 ring-amber-600/50">
+              {dynasty === 'tang' ? '太白' : '东坡'}
+            </div>
+
+            {/* 当前行历状态标签 */}
+            <div className="mt-1 px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold font-poetry whitespace-nowrap shadow-md flex items-center space-x-1 border border-amber-300">
+              <Footprints className="w-3 h-3 text-amber-200" />
+              <span>{isTraveling ? '策马行路中...' : '当前驻足'}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 3. 悬浮的 3D/2D 模式与缩放控制器 (右下角) */}
-      <div className="absolute right-4 bottom-24 z-30 flex flex-col items-center bg-white/95 backdrop-blur-md border border-slate-300/80 rounded-2xl p-1.5 shadow-xl space-y-1.5">
-        {/* 3D 鸟瞰 vs 2D 顶视切换 */}
+      {/* 3. 悬浮地图交互控件 (右下角) */}
+      <div className="absolute right-4 bottom-24 z-30 flex flex-col items-center bg-white/95 backdrop-blur-md border border-slate-300 rounded-2xl p-1.5 shadow-xl space-y-1.5">
         <button
-          onClick={toggleViewMode}
-          title={viewMode === '3d' ? '切换为 2D 顶视平览' : '切换为 3D 鸟瞰沙盘'}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-            viewMode === '3d'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-800 hover:bg-slate-100 hover:text-emerald-800'
-          }`}
-        >
-          {viewMode === '3d' ? <Box className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
-        </button>
-
-        {/* 地形立体起伏强化 */}
-        <button
-          onClick={toggleRelief}
-          title={`当前地形起伏: ${reliefLevel.toFixed(1)}x (点击切换)`}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 transition-all relative"
-        >
-          <Mountain className="w-4 h-4" />
-          <span className="absolute bottom-1 right-1 text-[8px] font-bold text-emerald-800">
-            {reliefLevel.toFixed(1)}x
-          </span>
-        </button>
-
-        <div className="w-5 h-[1px] bg-slate-300 my-0.5" />
-
-        {/* 放大 */}
-        <button
-          onClick={handleZoomIn}
-          title="拉近视角"
+          onClick={zoomIn}
+          title="放大地图"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
-
-        {/* 缩小 */}
         <button
-          onClick={handleZoomOut}
-          title="拉远全览"
+          onClick={zoomOut}
+          title="缩小地图"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
-
         <div className="w-5 h-[1px] bg-slate-300 my-0.5" />
-
-        {/* 复位 */}
         <button
-          onClick={handleResetView}
-          title="复位视角"
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
+          onClick={resetView}
+          title="复位全览"
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all text-[11px] font-bold"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* 4. 探索操作指南与当前位置 (左下角) */}
-      <div className="absolute left-4 bottom-24 z-20 hidden sm:flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-slate-300/80 px-4 py-2 rounded-full text-xs text-[#09131C] shadow-lg">
-        <Compass className="w-4 h-4 text-emerald-700 shrink-0" />
+      {/* 4. 探索指南微标 (左下角) */}
+      <div className="absolute left-4 bottom-24 z-20 hidden sm:flex items-center space-x-2.5 bg-white/95 backdrop-blur-md border border-slate-300 px-4 py-2 rounded-full text-xs text-slate-800 shadow-md">
+        <Compass className="w-4 h-4 text-emerald-800 shrink-0" />
         <span className="font-medium">
-          左键平移 · 右键(或Shift)旋转俯仰 · 滚轮缩放 · 点击名城开启当朝风土人文
+          拖拽漫游 · 滚轮缩放 · 点击名城开启当朝风土 · 点击其他文人探查同期行迹
         </span>
       </div>
 
-      {/* 5. 城市人文详情弹窗 (点击任意地名时展开，严格只呈现当前朝代信息) */}
+      {/* 5. 同行诗人档案弹窗 (点击地图上其他文人时弹出) */}
+      {selectedPoetDossier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-sm bg-white/98 backdrop-blur-xl border border-slate-300 rounded-3xl p-5 shadow-2xl text-slate-900 space-y-3.5">
+            {/* 顶栏 */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <div className="flex items-center space-x-2.5">
+                <div
+                  style={{ backgroundColor: selectedPoetDossier.poet.color }}
+                  className="w-9 h-9 rounded-full text-white font-bold text-sm font-poetry flex items-center justify-center shadow"
+                >
+                  {selectedPoetDossier.poet.avatarText}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base font-poetry text-slate-900">
+                    {selectedPoetDossier.poet.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-600">
+                    字{selectedPoetDossier.poet.courtesyName} · {selectedPoetDossier.poet.title}
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 font-bold border border-emerald-300">
+                公元 {currentYear} 年 ({selectedPoetDossier.age}岁)
+              </span>
+            </div>
+
+            {/* 当期所在地点与行迹活动 */}
+            <div className="space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-900">
+                <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                <span>当期驻足：{selectedPoetDossier.cityName}</span>
+              </div>
+              <p className="text-xs text-slate-800 leading-relaxed font-sans">
+                {selectedPoetDossier.status}
+              </p>
+            </div>
+
+            {/* 当期代表诗作 */}
+            {selectedPoetDossier.recentWork && (
+              <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-950 flex items-center justify-between">
+                <span className="font-bold flex items-center space-x-1">
+                  <BookOpen className="w-3.5 h-3.5 text-amber-700" />
+                  <span>同期传世名篇：</span>
+                </span>
+                <span className="font-poetry font-bold text-amber-900">
+                  {selectedPoetDossier.recentWork}
+                </span>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setSelectedPoetDossier(null)}
+                className="w-full py-2 rounded-full bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold shadow-md transition-all"
+              >
+                掩卷已知
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. 城市人文详情弹窗 (严格限定当朝信息，绝无跨朝代信息混杂) */}
       {activeCityDetail && (
         <CityDetailModal
           city={activeCityDetail}

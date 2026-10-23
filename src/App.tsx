@@ -100,6 +100,7 @@ export const App: React.FC = () => {
           dynasty={currentDynasty}
           onTravel={travelToLocation}
           unlockedPoemIds={unlockedPoemIds}
+          currentYear={currentYear}
         />
 
         {/* 右上角悬浮：五维心境水滴仪表盘 */}
