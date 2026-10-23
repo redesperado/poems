@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
-import { LI_BAI_POEMS } from '../../data/poets/li_bai/poems';
 import { PoemData } from '../../types/poem';
+import { PoetData } from '../../types/poet';
 import { X, BookOpen, Award, Check } from 'lucide-react';
 
 interface CollectionModalProps {
+  poet: PoetData;
+  poems: PoemData[];
   unlockedPoemIds: string[];
   poemScores: Record<string, number>;
   onClose: () => void;
 }
 
 export const CollectionModal: React.FC<CollectionModalProps> = ({
+  poet,
+  poems,
   unlockedPoemIds,
   poemScores,
   onClose,
 }) => {
   const [selectedPoem, setSelectedPoem] = useState<PoemData | null>(
-    LI_BAI_POEMS.find((p) => unlockedPoemIds.includes(p.id)) || null
+    poems.find((p) => unlockedPoemIds.includes(p.id)) || null
   );
 
   return (
@@ -26,10 +30,10 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
           <div className="flex items-center space-x-2">
             <BookOpen className="w-5 h-5 text-theme-primary" />
             <h2 className="text-lg font-bold font-poetry text-theme-text">
-              诗仙文渊 · 典藏阁
+              {poet.name_cn} · 典藏阁
             </h2>
             <span className="text-xs text-theme-text-muted">
-              ({unlockedPoemIds.length}/{LI_BAI_POEMS.length})
+              ({unlockedPoemIds.length}/{poems.length})
             </span>
           </div>
           <button
@@ -45,10 +49,10 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
           {/* 左侧：已解锁与未解锁诗作列表 */}
           <div className="space-y-2.5">
             <h3 className="text-xs font-semibold text-theme-text-muted">
-              太白存卷
+              {poet.title}存卷
             </h3>
             <div className="grid grid-cols-1 gap-2">
-              {LI_BAI_POEMS.map((poem) => {
+              {poems.map((poem) => {
                 const isUnlocked = unlockedPoemIds.includes(poem.id);
                 const score = poemScores[poem.id] || 100;
                 const isSelected = selectedPoem?.id === poem.id;
@@ -104,7 +108,7 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
                     《{selectedPoem.title}》
                   </h4>
                   <p className="text-[11px] text-theme-text-muted">
-                    唐 · 李太白 · 公元 {selectedPoem.year} 年
+                    {selectedPoem.dynasty === 'tang' ? '唐' : '宋'} · {poet.name_cn} · 公元 {selectedPoem.year} 年
                   </p>
                 </div>
 
