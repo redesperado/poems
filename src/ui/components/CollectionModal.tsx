@@ -128,6 +128,14 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
                   <span className="font-bold text-theme-text">【创作心境】</span>
                   <p className="leading-relaxed">{selectedPoem.background}</p>
                 </div>
+
+                {/* 诗人手札 */}
+                {selectedPoem.poet_journal && (
+                  <div className="text-xs bg-amber-50/60 p-3 rounded-xl border border-amber-200/50 space-y-1">
+                    <span className="font-bold text-amber-900 font-poetry">【文人亲笔手札】</span>
+                    <p className="leading-relaxed text-amber-800 italic font-poetry">{selectedPoem.poet_journal}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-theme-text-muted text-xs space-y-2">

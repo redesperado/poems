@@ -64,7 +64,13 @@ export function useGameStore() {
   useEffect(() => {
     async function initSave() {
       try {
-        const save = await loadGameSave(currentPoet.id, currentPoet.initial_mood);
+        const save = await loadGameSave(
+          currentPoet.id,
+          currentPoet.initial_mood,
+          currentPoet.start_year,
+          currentPoet.start_location_id,
+          currentPoet.preferred_theme_id || 'spring'
+        );
         if (save) {
           setCurrentYear(save.year);
           setCurrentTheme(save.currentTheme || 'spring');
@@ -85,7 +91,7 @@ export function useGameStore() {
       }
     }
     initSave();
-  }, [currentPoet.id, currentPoet.initial_mood]);
+  }, [currentPoet.id, currentPoet.initial_mood, currentPoet.start_year, currentPoet.start_location_id, currentPoet.preferred_theme_id]);
 
   // 切换诗人/词人（全系统无缝切换）
   const switchPoet = useCallback((poetId: string) => {
@@ -115,7 +121,7 @@ export function useGameStore() {
       document.documentElement.setAttribute('data-theme', themeId);
       // 持久化主题
       const saveRecord: PlayerSaveRecord = {
-        id: 'main_save',
+        id: `save_${currentPoet.id}`,
         poetId: currentPoet.id,
         year: currentYear,
         locationId: currentLocation.id,
@@ -188,7 +194,7 @@ export function useGameStore() {
 
       // 持久化
       const saveRecord: PlayerSaveRecord = {
-        id: 'main_save',
+        id: `save_${currentPoet.id}`,
         poetId: currentPoet.id,
         year: currentYear,
         locationId: currentLocation.id,
@@ -236,7 +242,7 @@ export function useGameStore() {
 
       // 持久化到 IndexedDB
       const saveRecord: PlayerSaveRecord = {
-        id: 'main_save',
+        id: `save_${currentPoet.id}`,
         poetId: currentPoet.id,
         year: currentYear,
         locationId: currentLocation.id,

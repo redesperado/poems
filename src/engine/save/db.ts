@@ -31,22 +31,29 @@ export const db = new PoetryGameDatabase();
 // 默认初始存档
 export const DEFAULT_SAVE_ID = 'main_save';
 
-export async function loadGameSave(poetId: string, initialMood: MoodState): Promise<PlayerSaveRecord> {
-  const existing = await db.saves.get(DEFAULT_SAVE_ID);
+export async function loadGameSave(
+  poetId: string,
+  initialMood: MoodState,
+  startYear: number = 726,
+  startLocationId: string = 'lu_shan',
+  preferredTheme: string = 'spring'
+): Promise<PlayerSaveRecord> {
+  const saveId = `save_${poetId}`;
+  const existing = await db.saves.get(saveId);
   if (existing) {
     return existing;
   }
   const defaultSave: PlayerSaveRecord = {
-    id: DEFAULT_SAVE_ID,
+    id: saveId,
     poetId,
-    year: 726,
-    locationId: 'lu_shan',
+    year: startYear,
+    locationId: startLocationId,
     mood: initialMood,
     unlockedPoemIds: [],
     poemScores: {},
     completedEventIds: [],
     choicesMade: {},
-    currentTheme: 'spring',
+    currentTheme: preferredTheme,
     updatedAt: Date.now(),
   };
   await db.saves.put(defaultSave);

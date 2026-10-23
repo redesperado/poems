@@ -14,9 +14,7 @@ import { Sparkles, Compass, GitFork } from 'lucide-react';
 export const App: React.FC = () => {
   const {
     currentPoet,
-    switchPoet,
     currentDynasty,
-    setCurrentDynasty,
     currentTheme,
     switchTheme,
     currentYear,
@@ -81,12 +79,10 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden flex flex-col justify-between bg-theme-canvas min-h-dvh-safe transition-colors duration-300">
-      {/* 1. 顶部状态与导航 (海棠形头像、多文人切换、朝代切换、主题换肤) */}
+      {/* 1. 顶部状态与导航 (海棠形头像、朝代绑定、主题换肤) */}
       <HeaderNav
         poet={currentPoet}
         dynasty={currentDynasty}
-        onDynastyChange={setCurrentDynasty}
-        onPoetChange={switchPoet}
         year={currentYear}
         location={currentLocation}
         currentTheme={currentTheme}
