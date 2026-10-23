@@ -36,7 +36,7 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
                 className={`text-[10px] font-mono mb-1 transition-colors ${
                   isPastOrCurrent
                     ? 'text-theme-primary font-bold'
-                    : 'text-gray-400'
+                    : 'text-slate-600 font-medium'
                 }`}
               >
                 {event.year}年
@@ -55,7 +55,7 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
                     ? 'bg-red-600 text-white shadow-md animate-pulse'
                     : isPastOrCurrent
                     ? 'bg-theme-primary text-white shadow-sm'
-                    : 'border border-gray-300 text-gray-400 bg-white'
+                    : 'border border-slate-400 text-slate-600 bg-white'
                 }`}
               >
                 {hasPoem ? (
@@ -73,8 +73,8 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
               <span
                 className={`mt-1 text-[11px] font-poetry whitespace-nowrap transition-colors ${
                   isPastOrCurrent
-                    ? 'text-theme-text font-medium group-hover:text-theme-primary'
-                    : 'text-gray-400'
+                    ? 'text-theme-text font-bold group-hover:text-theme-primary'
+                    : 'text-slate-600 font-medium'
                 }`}
               >
                 {event.title}

@@ -1,28 +1,30 @@
 /* ==========================================================
-   动态多主题变量定义 (Theme Engine Variables)
+   动态多主题变量定义 (Theme Engine Variables - 高对比度增强版)
    ========================================================== */
 
 /* 1. 默认主题：【新东方·春生】 (Neo-Oriental Spring Vitality) */
 :root,
 [data-theme="spring"] {
-  --color-bg-canvas: #F6F9F5;
-  --color-bg-surface: rgba(255, 255, 255, 0.75);
-  --color-bg-surface-card: rgba(255, 255, 255, 0.90);
-  --color-border: rgba(16, 185, 129, 0.2);
-  --color-border-highlight: rgba(16, 185, 129, 0.45);
-  --color-text-main: #0F172A;
-  --color-text-muted: #475569;
+  --color-bg-canvas: #F4F7F3;
+  --color-bg-surface: rgba(255, 255, 255, 0.90);
+  --color-bg-surface-card: rgba(255, 255, 255, 0.98);
+  --color-border: rgba(5, 150, 105, 0.35);
+  --color-border-highlight: rgba(5, 150, 105, 0.7);
 
-  --color-primary: #10B981;        /* 春水碧 */
-  --color-primary-hover: #059669;
+  /* 文字颜色：高对比度冷墨色，拒绝浅灰与模糊 */
+  --color-text-main: #09131C;       /* 深黑墨色，对比度达 16:1 */
+  --color-text-muted: #1E293B;      /* 深石板灰，对比度达 9:1 */
+
+  --color-primary: #047857;        /* 翠绿高对比色 (原 10B981 加深) */
+  --color-primary-hover: #065F46;
   --color-primary-light: #ECFDF5;
-  --color-accent: #0D9488;         /* 晴空青瓷 */
-  --color-gold: #F59E0B;           /* 春阳金 */
-  --color-peach: #F472B6;          /* 桃夭薄粉 */
+  --color-accent: #0F766E;         /* 深青瓷 */
+  --color-gold: #B45309;           /* 深琥珀金，浅底上清晰可见 */
+  --color-peach: #BE185D;
 
-  --glow-primary: rgba(16, 185, 129, 0.35);
-  --glow-gold: rgba(245, 158, 11, 0.45);
-  --shadow-ambient: rgba(15, 23, 42, 0.06);
+  --glow-primary: rgba(4, 120, 87, 0.4);
+  --glow-gold: rgba(180, 83, 9, 0.45);
+  --shadow-ambient: rgba(15, 23, 42, 0.12);
 
   --font-family-body: 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
   --font-family-poetry: 'Songti SC', 'Source Han Serif SC', serif;
@@ -30,44 +32,46 @@
 
 /* 2. 备选主题：【天青宋韵】 (Song Dynasty Celadon & Rainy Mist) */
 [data-theme="song-celadon"] {
-  --color-bg-canvas: #F1F5F4;
-  --color-bg-surface: rgba(255, 255, 255, 0.72);
-  --color-bg-surface-card: rgba(248, 250, 249, 0.92);
-  --color-border: rgba(13, 148, 136, 0.22);
-  --color-border-highlight: rgba(13, 148, 136, 0.5);
-  --color-text-main: #134E4A;
-  --color-text-muted: #4B6361;
+  --color-bg-canvas: #EEF4F3;
+  --color-bg-surface: rgba(255, 255, 255, 0.90);
+  --color-bg-surface-card: rgba(255, 255, 255, 0.98);
+  --color-border: rgba(15, 118, 110, 0.35);
+  --color-border-highlight: rgba(15, 118, 110, 0.75);
 
-  --color-primary: #0D9488;        /* 汝窑天青 */
-  --color-primary-hover: #0F766E;
+  --color-text-main: #042F2E;       /* 极深青黛黑 */
+  --color-text-muted: #134E4A;      /* 深青苔灰 */
+
+  --color-primary: #0F766E;        /* 深汝窑天青 */
+  --color-primary-hover: #115E59;
   --color-primary-light: #F0FDFA;
-  --color-accent: #0284C7;         /* 烟雨微蓝 */
-  --color-gold: #D97706;
-  --color-peach: #FB7185;
+  --color-accent: #0369A1;
+  --color-gold: #B45309;
+  --color-peach: #BE185D;
 
-  --glow-primary: rgba(13, 148, 136, 0.35);
-  --glow-gold: rgba(217, 119, 6, 0.4);
-  --shadow-ambient: rgba(19, 78, 74, 0.08);
+  --glow-primary: rgba(15, 118, 110, 0.4);
+  --glow-gold: rgba(180, 83, 9, 0.4);
+  --shadow-ambient: rgba(4, 47, 46, 0.14);
 }
 
 /* 3. 备选主题：【玄墨落木】 (Classical Tang Ink & Autumn) */
 [data-theme="tang-ink"] {
-  --color-bg-canvas: #F5F3EF;
-  --color-bg-surface: rgba(255, 255, 255, 0.82);
-  --color-bg-surface-card: rgba(250, 248, 245, 0.95);
-  --color-border: rgba(43, 34, 25, 0.16);
-  --color-border-highlight: rgba(212, 160, 23, 0.5);
-  --color-text-main: #1A1208;
-  --color-text-muted: #574B3D;
+  --color-bg-canvas: #F4EFEA;
+  --color-bg-surface: rgba(255, 255, 255, 0.92);
+  --color-bg-surface-card: rgba(255, 255, 255, 0.98);
+  --color-border: rgba(43, 34, 25, 0.3);
+  --color-border-highlight: rgba(180, 83, 9, 0.75);
+
+  --color-text-main: #140D07;       /* 浓焦墨黑 */
+  --color-text-muted: #292524;      /* 纯正松烟墨 */
 
   --color-primary: #1E3A5F;        /* 盛唐玄青 */
-  --color-primary-hover: #12253E;
+  --color-primary-hover: #0F172A;
   --color-primary-light: #F0F4F8;
-  --color-accent: #C0392B;         /* 朱砂 */
-  --color-gold: #D4A017;           /* 金琥 */
-  --color-peach: #E06D53;
+  --color-accent: #991B1B;         /* 深朱砂红 */
+  --color-gold: #B45309;           /* 沉古金 */
+  --color-peach: #9D174D;
 
-  --glow-primary: rgba(30, 58, 95, 0.3);
-  --glow-gold: rgba(212, 160, 23, 0.4);
-  --shadow-ambient: rgba(26, 18, 8, 0.08);
+  --glow-primary: rgba(30, 58, 95, 0.4);
+  --glow-gold: rgba(180, 83, 9, 0.45);
+  --shadow-ambient: rgba(20, 13, 7, 0.15);
 }

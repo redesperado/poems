@@ -58,18 +58,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               {poet.dynasty === 'tang' ? '大唐' : '两宋'}
             </span>
 
-            <span className="text-xs px-2 py-0.5 rounded-full bg-spring-emerald/15 text-spring-deep border border-spring-emerald/30 font-medium">
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-950 border border-emerald-400 font-bold">
               公元 {year} 年
             </span>
           </div>
 
           <div className="flex items-center space-x-1.5 text-xs text-theme-text-muted mt-0.5">
-            <Compass className="w-3.5 h-3.5 text-theme-accent" />
-            <span className="font-medium text-theme-accent">
+            <Compass className="w-3.5 h-3.5 text-theme-accent shrink-0" />
+            <span className="font-bold text-theme-accent">
               {currentDynastyLocationName}
             </span>
-            <span className="text-[11px] text-gray-400">
-              ({location.name_modern})
+            <span className="text-[11px] text-slate-700 font-medium">
+              (今 {location.name_modern})
             </span>
           </div>
         </div>

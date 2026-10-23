@@ -38,7 +38,7 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition-colors"
+            className="text-slate-600 hover:text-slate-900 p-1 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

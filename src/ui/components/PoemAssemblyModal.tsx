@@ -206,7 +206,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full transition-colors"
+            className="text-slate-600 hover:text-slate-900 p-1.5 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -633,7 +633,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
               <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200 shadow-sm relative overflow-hidden font-poetry">
                 {/* 仿真毛笔墨宝底纹水印 */}
                 <div className="absolute right-2 bottom-2 text-6xl text-amber-900/5 font-serif select-none pointer-events-none">
-                  太白手札
+                  {poem.poet_id === 'su_shi' ? '东坡手札' : '太白手札'}
                 </div>
 
                 <div className="flex items-center space-x-2 text-theme-primary pb-3 border-b border-amber-200/60">
