@@ -121,6 +121,16 @@ function diffPoemLine(userRaw: string, targetRaw: string): LineDiffResult {
   };
 }
 
+/**
+ * 根据填空字数动态计算填空槽宽度，确保与标准字宽/间隙完全对齐 (单字: 32px/40px, 双字: 68px/88px)
+ */
+function getBlankSlotWidthClass(len: number): string {
+  if (len === 1) return 'w-8 sm:w-10';
+  if (len === 2) return 'w-[68px] sm:w-[88px]';
+  if (len === 3) return 'w-[104px] sm:w-[136px]';
+  return 'w-8 sm:w-10';
+}
+
 export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   poem,
   onComplete,
@@ -460,11 +470,6 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
           >
             {/* 上部：宣纸绢本诗屏 */}
             <div className="relative text-center px-4 py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-4">
-              {/* 装饰水印 */}
-              <div className="absolute right-4 bottom-3 opacity-10 pointer-events-none select-none text-theme-accent font-poetry text-4xl border-2 border-theme-accent p-1.5 rounded-lg rotate-12">
-                文心
-              </div>
-
               <div className="text-xs text-theme-text-muted font-poetry border-b border-dashed border-theme-border/60 pb-2">
                 {activeMode === 'preview' && '✦ 全篇精读 · 重点词条与译文赏析已全览展开 ✦'}
                 {activeMode === 'assembly' && '✦ 格律推敲 · 斟酌文心，右侧锦囊可在卡壳时参阅 ✦'}
@@ -476,18 +481,26 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 模式 1: 全篇精读模式 */}
               {activeMode === 'preview' && (
-                <div className="space-y-4 font-poetry text-xl sm:text-2xl text-theme-text leading-relaxed tracking-widest py-2">
+                <div className="space-y-3 font-poetry py-2 flex flex-col items-center">
                   {poem.lines.map((line, idx) => {
                     const isVisible = idx < renderedLineCount;
+                    const chars = Array.from(line.text);
                     return (
-                      <p
+                      <div
                         key={idx}
-                        className={`transition-all duration-700 ${
+                        className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 blur-[2px]'
                         }`}
                       >
-                        {line.text}
-                      </p>
+                        {chars.map((char, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                          >
+                            {char}
+                          </span>
+                        ))}
+                      </div>
                     );
                   })}
                 </div>
@@ -495,57 +508,92 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 模式 2: 推敲填词模式 */}
               {activeMode === 'assembly' && (
-                <div className="space-y-4 font-poetry text-xl sm:text-2xl text-theme-text leading-relaxed tracking-widest py-2">
+                <div className="space-y-3 font-poetry py-2 flex flex-col items-center">
                   {poem.lines.map((line, idx) => {
                     const isVisible = idx < renderedLineCount;
                     const isCurrentQuestion = currentStep && currentStep.lineIndex === idx;
 
+                    // 无填空的行
                     if (line.blank_index === null) {
+                      const chars = Array.from(line.text);
                       return (
-                        <p
+                        <div
                           key={idx}
-                          className={`transition-all duration-700 ${
+                          className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
                             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                           }`}
                         >
-                          {line.text}
-                        </p>
+                          {chars.map((char, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                            >
+                              {char}
+                            </span>
+                          ))}
+                        </div>
                       );
                     }
 
-                    const before = line.text.slice(0, line.blank_index);
-                    const after = line.text.slice(line.blank_index + (line.correct?.length || 1));
+                    // 存在填空的行
+                    const bStart = line.blank_index;
+                    const bLen = line.correct?.length || 1;
+                    const bEnd = bStart + bLen;
+                    const chars = Array.from(line.text);
+                    const beforeChars = chars.slice(0, bStart);
+                    const afterChars = chars.slice(bEnd);
+                    const blankSlotWidth = getBlankSlotWidthClass(bLen);
 
                     return (
-                      <p
+                      <div
                         key={idx}
-                        className={`flex items-center justify-center transition-all duration-700 ${
+                        className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                         }`}
                       >
-                        <span>{before}</span>
-                        {/* 金字玉框墨槽 */}
-                        <span
-                          className={`inline-flex items-center justify-center mx-1.5 px-3.5 py-1 rounded-xl border-2 transition-all duration-300 ${
+                        {/* 挖空前各字 */}
+                        {beforeChars.map((char, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                          >
+                            {char}
+                          </span>
+                        ))}
+
+                        {/* 填空字模槽 */}
+                        <div
+                          className={`${blankSlotWidth} h-10 sm:h-12 rounded-xl flex items-center justify-center font-poetry font-bold transition-all duration-300 select-none ${
                             isFinished
-                              ? 'border-theme-primary bg-theme-primary-light text-theme-primary font-bold shadow-sm'
+                              ? 'border-2 border-theme-primary/40 bg-theme-primary-light text-theme-primary shadow-xs text-xl sm:text-2xl'
                               : isCurrentQuestion
                               ? isAnswerCorrect === true
-                                ? 'border-theme-primary bg-theme-primary-light text-theme-primary scale-105'
+                                ? 'border-2 border-emerald-500 bg-emerald-50 text-emerald-800 scale-105 shadow-sm text-xl sm:text-2xl'
                                 : isAnswerCorrect === false
-                                ? 'border-red-400 bg-red-50 text-red-600'
-                                : 'border-theme-gold bg-theme-gold/15 text-theme-gold font-bold ring-4 ring-theme-gold/20 shadow-gold-glow animate-pulse'
-                              : 'border-dashed border-theme-border text-theme-text-muted/40 bg-theme-surface'
+                                ? 'border-2 border-red-500 bg-red-50 text-red-600 text-xl sm:text-2xl'
+                                : 'border-2 border-theme-gold bg-theme-gold/15 text-theme-gold shadow-gold-glow animate-pulse text-lg sm:text-xl font-serif'
+                              : 'border-2 border-dashed border-theme-border/70 bg-theme-surface/50 text-theme-text-muted/40 font-serif text-sm'
                           }`}
                         >
                           {isFinished
                             ? line.correct
                             : isCurrentQuestion && selectedWord && isAnswerCorrect
                             ? selectedWord
+                            : isCurrentQuestion && selectedWord && isAnswerCorrect === false
+                            ? selectedWord
                             : '?'}
-                        </span>
-                        <span>{after}</span>
-                      </p>
+                        </div>
+
+                        {/* 挖空后各字 */}
+                        {afterChars.map((char, cIdx) => (
+                          <span
+                            key={cIdx + bEnd}
+                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                          >
+                            {char}
+                          </span>
+                        ))}
+                      </div>
                     );
                   })}
                 </div>
@@ -731,16 +779,20 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 模式 B：填词推敲选项区域 */}
               {activeMode === 'assembly' && !isFinished && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold text-theme-text">
-                    <span className="flex items-center space-x-1 text-theme-primary">
-                      <Lightbulb className="w-4 h-4 text-theme-gold" />
-                      <span>请推敲最契合诗境之一字：</span>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-theme-text px-1">
+                    <span className="flex items-center space-x-1.5 text-theme-primary">
+                      <Lightbulb className="w-4 h-4 text-theme-gold shrink-0" />
+                      <span>
+                        {currentLine?.correct && currentLine.correct.length > 1
+                          ? '请推敲最契合诗境之词句：'
+                          : '请推敲最契合诗境之一字：'}
+                      </span>
                     </span>
                     {errorCount >= 1 && (
                       <button
                         onClick={handleSkip}
-                        className="text-theme-gold hover:underline flex items-center space-x-1 font-bold"
+                        className="text-theme-gold hover:underline flex items-center space-x-1 font-bold text-xs"
                       >
                         <HelpCircle className="w-3.5 h-3.5" />
                         <span>跳过直接看解析</span>
@@ -748,8 +800,8 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     )}
                   </div>
 
-                  {/* 葵口宋瓷玉牌选项按键 */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* 活字雕版 · 汲古玉牌选项按键 */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                     {currentLine?.options?.map((opt, i) => {
                       const label = ['A', 'B', 'C', 'D'][i];
                       const isThisSelected = selectedWord === opt;
@@ -758,21 +810,52 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                         <button
                           key={opt}
                           onClick={() => handleOptionSelect(opt)}
-                          className={`relative py-3.5 px-4 rounded-2xl shape-lobed-petal border-2 flex items-center justify-between transition-all active:scale-95 shadow-sm ${
+                          className={`group relative p-3 sm:p-4 rounded-2xl border-2 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-xs ${
                             isThisSelected && isAnswerCorrect === true
-                              ? 'bg-theme-primary text-white border-theme-primary font-bold shadow-jade-glow'
+                              ? 'bg-emerald-600 border-emerald-600 text-white shadow-jade-glow scale-[1.02]'
                               : isThisSelected && isAnswerCorrect === false
                               ? 'bg-red-50 border-red-400 text-red-700'
-                              : 'bg-theme-surface-card hover:border-theme-primary hover:bg-theme-primary-light/40 text-theme-text border-theme-border'
+                              : 'bg-theme-surface-card hover:bg-theme-surface border-theme-border hover:border-theme-primary/70 hover:shadow-card-soft hover:-translate-y-0.5'
                           }`}
                         >
-                          <span className="w-5 h-5 rounded-full bg-theme-surface text-theme-text-muted font-mono text-xs flex items-center justify-center font-bold">
-                            {label}
-                          </span>
-                          <span className="text-2xl font-poetry font-bold tracking-widest text-theme-text">
-                            {opt}
-                          </span>
-                          <span className="w-5" />
+                          <div className="flex items-center justify-between w-full">
+                            {/* 左侧选项序号 */}
+                            <span
+                              className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs border transition-colors ${
+                                isThisSelected && isAnswerCorrect === true
+                                  ? 'bg-emerald-500/40 text-white border-emerald-300/60'
+                                  : 'bg-theme-surface border-theme-border text-theme-text-muted group-hover:text-theme-primary group-hover:border-theme-primary/40'
+                              }`}
+                            >
+                              {label}
+                            </span>
+
+                            {/* 中间核心字词 */}
+                            <span
+                              className={`text-2xl sm:text-3xl font-poetry font-bold tracking-widest transition-transform group-hover:scale-105 ${
+                                isThisSelected && isAnswerCorrect === true
+                                  ? 'text-white'
+                                  : isThisSelected && isAnswerCorrect === false
+                                  ? 'text-red-700'
+                                  : 'text-theme-text group-hover:text-theme-primary'
+                              }`}
+                            >
+                              {opt}
+                            </span>
+
+                            {/* 右侧反馈微标 */}
+                            <div className="w-6 flex items-center justify-end">
+                              {isThisSelected && isAnswerCorrect === true ? (
+                                <CheckCircle2 className="w-5 h-5 text-white animate-in zoom-in" />
+                              ) : isThisSelected && isAnswerCorrect === false ? (
+                                <AlertCircle className="w-5 h-5 text-red-600 animate-in zoom-in" />
+                              ) : (
+                                <span className="text-[11px] font-poetry opacity-0 group-hover:opacity-100 transition-opacity text-theme-primary font-bold">
+                                  选
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </button>
                       );
                     })}
