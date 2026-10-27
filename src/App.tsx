@@ -173,6 +173,10 @@ export const App: React.FC = () => {
           unlockedPoemIds={unlockedPoemIds}
           poemScores={poemScores}
           onClose={() => setIsCollectionOpen(false)}
+          onSelectPoemForPlay={(poem) => {
+            setIsCollectionOpen(false);
+            setActivePoemToAssemble(poem);
+          }}
         />
       )}
 
