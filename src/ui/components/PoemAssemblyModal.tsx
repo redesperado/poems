@@ -1133,17 +1133,18 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 4. 【诗人第一人称文心私密手札】 */}
               {(analysisFilter === 'all' || analysisFilter === 'journal') && (
-                <section className="p-5 rounded-2xl bg-theme-surface-card border border-theme-border shadow-xs relative overflow-hidden font-poetry space-y-2">
-                  <div className="absolute right-3 bottom-2 text-7xl text-theme-primary/5 select-none pointer-events-none font-serif">
-                    手札
+                <section className="p-5 rounded-2xl bg-theme-surface-card border border-theme-border shadow-xs font-poetry space-y-3">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-theme-border/60">
+                    <div className="flex items-center space-x-2 text-theme-gold font-bold text-xs sm:text-sm">
+                      <Feather className="w-4 h-4 text-theme-gold" />
+                      <span>【诗人第一人称文心手札 · 私密心语】</span>
+                    </div>
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-theme-gold/10 text-theme-gold border border-theme-gold/30 font-bold">
+                      原重心境
+                    </span>
                   </div>
 
-                  <div className="flex items-center space-x-2 text-theme-gold pb-2 border-b border-theme-border/60 font-bold text-xs">
-                    <Feather className="w-4 h-4 text-theme-gold" />
-                    <span>【诗人第一人称文心手札 · 私密心语】</span>
-                  </div>
-
-                  <p className="text-xs sm:text-sm text-theme-text-muted leading-relaxed tracking-wider indent-6 whitespace-pre-line leading-7 font-poetry">
+                  <p className="text-xs sm:text-sm text-theme-text leading-relaxed tracking-wider indent-6 whitespace-pre-line leading-7 font-poetry">
                     {poem.poet_journal}
                   </p>
                 </section>
