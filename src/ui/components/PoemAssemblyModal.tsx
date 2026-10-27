@@ -263,6 +263,15 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [finalScore, setFinalScore] = useState<number>(100);
 
+  const activeBlankRef = useRef<HTMLDivElement>(null);
+
+  // 填空推进时自动平滑居中聚焦当前考题诗行
+  useEffect(() => {
+    if (activeBlankRef.current) {
+      activeBlankRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [currentStepIndex, activeMode]);
+
   // 【名篇默写】全篇自由书写与统一提交校勘状态
   const [dictationInputs, setDictationInputs] = useState<string[]>(() =>
     new Array(poem.lines.length).fill('')
@@ -578,14 +587,19 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
             }`}
           >
             {/* 上部：宣纸绢本诗屏 */}
-            <div className="relative text-center px-2 sm:px-4 py-3 sm:py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-3 sm:space-y-4 overflow-hidden w-full">
-              <div className="text-xs text-theme-text-muted font-poetry border-b border-dashed border-theme-border/60 pb-2">
-                {activeMode === 'preview' && '✦ 全篇精读 · 重点词条与译文赏析已全览展开 ✦'}
-                {activeMode === 'assembly' && '✦ 格律推敲 · 斟酌文心，右侧锦囊可在卡壳时参阅 ✦'}
-                {activeMode === 'dictation' &&
-                  (!isDictationSubmitted
-                    ? '✦ 全篇背默 · 逐句书写，检查无误后点击下方【呈交答卷】统一校勘 ✦'
-                    : '✦ 宗师朱批 · 圈红订正校勘卷，点击下方可重默复盘 ✦')}
+            <div className="relative text-center px-2 sm:px-4 py-3 sm:py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-3 sm:space-y-4 overflow-hidden w-full max-h-[46vh] sm:max-h-[50vh] overflow-y-auto no-scrollbar scroll-smooth">
+              <div className="text-xs text-theme-text-muted font-poetry border-b border-dashed border-theme-border/60 pb-2 flex items-center justify-between px-1">
+                <span>
+                  {activeMode === 'preview' && `✦ 全篇精读 · 传世长篇全文共 ${poem.lines.length} 句 ✦`}
+                  {activeMode === 'assembly' && `✦ 格律推敲 · 全篇共 ${poem.lines.length} 句 · 斟酌文心 ✦`}
+                  {activeMode === 'dictation' &&
+                    (!isDictationSubmitted
+                      ? `✦ 全篇背默 · 全文共 ${poem.lines.length} 句 · 逐句书写 ✦`
+                      : '✦ 宗师朱批 · 圈红订正校勘卷 ✦')}
+                </span>
+                <span className="text-[10px] opacity-75 font-mono">
+                  {activeMode === 'assembly' && !isFinished && `进度: ${currentStepIndex + 1}/${blankLines.length}`}
+                </span>
               </div>
 
               {/* 模式 1: 全篇精读模式 */}
@@ -659,6 +673,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     return (
                       <div
                         key={idx}
+                        ref={isCurrentQuestion ? activeBlankRef : null}
                         className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                         }`}
