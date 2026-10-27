@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PoemData, PoemLine } from '../../types/poem';
 import confetti from 'canvas-confetti';
 import {
@@ -15,6 +15,8 @@ import {
   RotateCcw,
   ScrollText,
   Lightbulb,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
 
 interface PoemAssemblyModalProps {
@@ -25,6 +27,99 @@ interface PoemAssemblyModalProps {
 
 type PlayMode = 'preview' | 'assembly' | 'dictation';
 type AnalysisFilter = 'all' | 'translation' | 'keywords' | 'appreciation' | 'journal';
+
+// 字符级校勘对比标记
+interface DiffToken {
+  type: 'correct' | 'wrong' | 'missing' | 'extra';
+  userChar?: string;
+  expectedChar?: string;
+}
+
+interface LineDiffResult {
+  tokens: DiffToken[];
+  isPerfect: boolean;
+  correctCount: number;
+  totalTargetCount: number;
+}
+
+/**
+ * 基于最长公共子序列 (LCS) 算法对默写单句进行字符级精准对齐与校勘
+ */
+function diffPoemLine(userRaw: string, targetRaw: string): LineDiffResult {
+  const user = (userRaw || '').trim().replace(/[，。？！、\s]/g, '');
+  const target = (targetRaw || '').trim().replace(/[，。？！、\s]/g, '');
+
+  const m = user.length;
+  const n = target.length;
+
+  if (n === 0) {
+    return { tokens: [], isPerfect: true, correctCount: 0, totalTargetCount: 0 };
+  }
+
+  // 1. 动态规划构建 LCS 矩阵
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) {
+      if (user[i] === target[j]) {
+        dp[i + 1][j + 1] = dp[i][j] + 1;
+      } else {
+        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  // 2. 回溯求解差异标记
+  let i = m;
+  let j = n;
+  let matchCount = 0;
+  const revTokens: DiffToken[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && user[i - 1] === target[j - 1]) {
+      revTokens.push({
+        type: 'correct',
+        userChar: user[i - 1],
+        expectedChar: target[j - 1],
+      });
+      matchCount++;
+      i--;
+      j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1]) {
+      // 错字替换
+      revTokens.push({
+        type: 'wrong',
+        userChar: user[i - 1],
+        expectedChar: target[j - 1],
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      // 遗漏字
+      revTokens.push({
+        type: 'missing',
+        expectedChar: target[j - 1],
+      });
+      j--;
+    } else if (i > 0 && (j === 0 || dp[i - 1][j] > dp[i][j - 1])) {
+      // 衍字 / 多字
+      revTokens.push({
+        type: 'extra',
+        userChar: user[i - 1],
+      });
+      i--;
+    }
+  }
+
+  const tokens = revTokens.reverse();
+  const isPerfect = user === target && user.length > 0;
+
+  return {
+    tokens,
+    isPerfect,
+    correctCount: matchCount,
+    totalTargetCount: n,
+  };
+}
 
 export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   poem,
@@ -46,7 +141,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   // 重点词交互聚焦
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null);
 
-  // 导读遮瑕防剧透状态 (推敲/默写中默认遮盖答案线索，避免直接剧透)
+  // 导读遮瑕防剧透状态
   const [showTranslationHint, setShowTranslationHint] = useState<boolean>(false);
   const [revealedKeywords, setRevealedKeywords] = useState<Record<string, boolean>>({});
 
@@ -63,11 +158,12 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [finalScore, setFinalScore] = useState<number>(100);
 
-  // 【名篇默写】状态
-  const [dictationStep, setDictationStep] = useState<number>(0);
-  const [dictationInput, setDictationInput] = useState<string>('');
-  const [dictationErrors, setDictationErrors] = useState<number>(0);
-  const [dictationDone, setDictationDone] = useState<boolean>(false);
+  // 【名篇默写】全篇自由书写与统一提交校勘状态
+  const [dictationInputs, setDictationInputs] = useState<string[]>(() =>
+    new Array(poem.lines.length).fill('')
+  );
+  const [isDictationSubmitted, setIsDictationSubmitted] = useState<boolean>(false);
+  const dictationInputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const currentStep = blankLines[currentStepIndex];
   const currentLine: PoemLine | undefined = currentStep?.line;
@@ -87,11 +183,13 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
     return () => clearInterval(interval);
   }, [poem.id, activeMode]);
 
-  // 当切换模式时重置提示状态
+  // 当切换诗作或模式时重置默写输入与提示状态
   useEffect(() => {
     setShowTranslationHint(false);
     setRevealedKeywords({});
-  }, [activeMode]);
+    setDictationInputs(new Array(poem.lines.length).fill(''));
+    setIsDictationSubmitted(false);
+  }, [poem.id, activeMode]);
 
   // 推敲选项选择
   const handleOptionSelect = (option: string) => {
@@ -151,37 +249,100 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
     onComplete(poem.id, finalScore);
   };
 
-  // 默写行提交检查
-  const handleDictationCheck = () => {
-    const targetLine = poem.lines[dictationStep];
-    if (!targetLine) return;
+  // 更新某一行默写输入
+  const handleDictationInputChange = (index: number, val: string) => {
+    setDictationInputs((prev) => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+  };
 
-    const trimmedInput = dictationInput.trim().replace(/[，。？！、]/g, '');
-    const cleanTarget = targetLine.text.replace(/[，。？！、]/g, '');
-
-    if (trimmedInput === cleanTarget) {
-      if (dictationStep + 1 < poem.lines.length) {
-        setDictationStep((prev) => prev + 1);
-        setDictationInput('');
+  // 默写输入框按回车键聚焦下一行
+  const handleDictationKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (index + 1 < poem.lines.length) {
+        dictationInputsRef.current[index + 1]?.focus();
       } else {
-        setDictationDone(true);
-        confetti({
-          particleCount: 90,
-          spread: 75,
-          origin: { y: 0.6 },
-          colors: ['#10B981', '#0D9488', '#F59E0B'],
-        });
-        onComplete(poem.id, dictationErrors === 0 ? 100 : 80);
+        handleSubmitDictation();
       }
-    } else {
-      setDictationErrors((prev) => prev + 1);
-      alert(`原句为：“${targetLine.text}”，再仔细回忆一下吧！`);
     }
   };
 
+  // 呈交全篇默写答卷并统一核验批改
+  const handleSubmitDictation = () => {
+    setIsDictationSubmitted(true);
+
+    // 计算全篇统计
+    let totalChars = 0;
+    let totalCorrect = 0;
+
+    poem.lines.forEach((line, idx) => {
+      const diff = diffPoemLine(dictationInputs[idx] || '', line.text);
+      totalChars += diff.totalTargetCount;
+      totalCorrect += diff.correctCount;
+    });
+
+    const scorePercent = totalChars > 0 ? Math.round((totalCorrect / totalChars) * 100) : 0;
+
+    if (scorePercent === 100) {
+      confetti({
+        particleCount: 100,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#10B981', '#0D9488', '#F59E0B'],
+      });
+    }
+
+    onComplete(poem.id, scorePercent);
+  };
+
+  // 重置默写
+  const handleResetDictation = () => {
+    setDictationInputs(new Array(poem.lines.length).fill(''));
+    setIsDictationSubmitted(false);
+    setTimeout(() => {
+      dictationInputsRef.current[0]?.focus();
+    }, 100);
+  };
+
+  // 全篇默写批改综合统计计算
+  const dictationSummary = React.useMemo(() => {
+    if (!isDictationSubmitted) return null;
+    let totalChars = 0;
+    let totalCorrect = 0;
+    let totalErrors = 0;
+
+    const lineDiffs = poem.lines.map((line, idx) => {
+      const diff = diffPoemLine(dictationInputs[idx] || '', line.text);
+      totalChars += diff.totalTargetCount;
+      totalCorrect += diff.correctCount;
+      diff.tokens.forEach((t) => {
+        if (t.type !== 'correct') totalErrors++;
+      });
+      return diff;
+    });
+
+    const scorePercent = totalChars > 0 ? Math.round((totalCorrect / totalChars) * 100) : 0;
+    let gradeTitle = '甲等 · 妙绝古今';
+    if (scorePercent < 60) gradeTitle = '丁等 · 熟诵为先';
+    else if (scorePercent < 80) gradeTitle = '丙等 · 仍需温故';
+    else if (scorePercent < 100) gradeTitle = '乙等 · 文思斐然';
+
+    return {
+      lineDiffs,
+      totalChars,
+      totalCorrect,
+      totalErrors,
+      scorePercent,
+      gradeTitle,
+    };
+  }, [isDictationSubmitted, poem.lines, dictationInputs]);
+
   // 判定某词条是否属于当前正在考核的答案字 (用于避免直接剧透)
   const isWordCurrentAnswer = (word: string) => {
-    if (activeMode === 'preview' || isFinished) return false;
+    if (activeMode === 'preview' || isFinished || isDictationSubmitted) return false;
     if (activeMode === 'assembly' && currentLine?.correct) {
       return word.includes(currentLine.correct) || currentLine.correct.includes(word);
     }
@@ -290,7 +451,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
         <div className="flex-1 grid grid-cols-12 gap-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-theme-border/60">
           
           {/* ----------------------------------------------------------------- */}
-          {/* 左卷 (5列)：诗屏吟诵、填词推敲与选项交互 */}
+          {/* 左卷 (5列)：诗屏吟诵、填词推敲、名篇整篇默写与宗师批改圈错 */}
           {/* ----------------------------------------------------------------- */}
           <div
             className={`col-span-12 lg:col-span-5 flex flex-col justify-between p-4 sm:p-6 bg-theme-canvas overflow-y-auto no-scrollbar ${
@@ -298,7 +459,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
             }`}
           >
             {/* 上部：宣纸绢本诗屏 */}
-            <div className="relative text-center px-4 py-6 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-4">
+            <div className="relative text-center px-4 py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-4">
               {/* 装饰水印 */}
               <div className="absolute right-4 bottom-3 opacity-10 pointer-events-none select-none text-theme-accent font-poetry text-4xl border-2 border-theme-accent p-1.5 rounded-lg rotate-12">
                 文心
@@ -307,102 +468,230 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
               <div className="text-xs text-theme-text-muted font-poetry border-b border-dashed border-theme-border/60 pb-2">
                 {activeMode === 'preview' && '✦ 全篇精读 · 重点词条与译文赏析已全览展开 ✦'}
                 {activeMode === 'assembly' && '✦ 格律推敲 · 斟酌文心，右侧锦囊可在卡壳时参阅 ✦'}
-                {activeMode === 'dictation' && '✦ 经典背默 · 逐句还原传世绝唱，检验真功 ✦'}
+                {activeMode === 'dictation' &&
+                  (!isDictationSubmitted
+                    ? '✦ 全篇背默 · 逐句书写，检查无误后点击下方【呈交答卷】统一校勘 ✦'
+                    : '✦ 宗师朱批 · 圈红订正校勘卷，点击下方可重默复盘 ✦')}
               </div>
 
-              {/* 逐行墨润渐显诗句 */}
-              <div className="space-y-4 font-poetry text-xl sm:text-2xl text-theme-text leading-relaxed tracking-widest py-2">
-                {poem.lines.map((line, idx) => {
-                  const isVisible = idx < renderedLineCount;
-
-                  // 1. 全篇精读模式
-                  if (activeMode === 'preview') {
+              {/* 模式 1: 全篇精读模式 */}
+              {activeMode === 'preview' && (
+                <div className="space-y-4 font-poetry text-xl sm:text-2xl text-theme-text leading-relaxed tracking-widest py-2">
+                  {poem.lines.map((line, idx) => {
+                    const isVisible = idx < renderedLineCount;
                     return (
                       <p
                         key={idx}
                         className={`transition-all duration-700 ${
-                          isVisible
-                            ? 'opacity-100 translate-y-0'
-                            : 'opacity-0 translate-y-2 blur-[2px]'
+                          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 blur-[2px]'
                         }`}
                       >
                         {line.text}
                       </p>
                     );
-                  }
+                  })}
+                </div>
+              )}
 
-                  // 2. 名篇默写模式
-                  if (activeMode === 'dictation') {
-                    const isPast = idx < dictationStep;
-                    const isCurrent = idx === dictationStep;
+              {/* 模式 2: 推敲填词模式 */}
+              {activeMode === 'assembly' && (
+                <div className="space-y-4 font-poetry text-xl sm:text-2xl text-theme-text leading-relaxed tracking-widest py-2">
+                  {poem.lines.map((line, idx) => {
+                    const isVisible = idx < renderedLineCount;
+                    const isCurrentQuestion = currentStep && currentStep.lineIndex === idx;
+
+                    if (line.blank_index === null) {
+                      return (
+                        <p
+                          key={idx}
+                          className={`transition-all duration-700 ${
+                            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                          }`}
+                        >
+                          {line.text}
+                        </p>
+                      );
+                    }
+
+                    const before = line.text.slice(0, line.blank_index);
+                    const after = line.text.slice(line.blank_index + (line.correct?.length || 1));
+
                     return (
                       <p
                         key={idx}
-                        className={`transition-all duration-500 ${
-                          isPast
-                            ? 'text-theme-primary font-bold'
-                            : isCurrent
-                            ? 'text-theme-gold font-bold animate-pulse'
-                            : 'text-theme-text-muted/40'
-                        }`}
-                      >
-                        {isPast ? line.text : isCurrent ? `第 ${idx + 1} 句：待背默...` : '············'}
-                      </p>
-                    );
-                  }
-
-                  // 3. 推敲填词模式
-                  const isCurrentQuestion = currentStep && currentStep.lineIndex === idx;
-
-                  if (line.blank_index === null) {
-                    return (
-                      <p
-                        key={idx}
-                        className={`transition-all duration-700 ${
+                        className={`flex items-center justify-center transition-all duration-700 ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                         }`}
                       >
-                        {line.text}
+                        <span>{before}</span>
+                        {/* 金字玉框墨槽 */}
+                        <span
+                          className={`inline-flex items-center justify-center mx-1.5 px-3.5 py-1 rounded-xl border-2 transition-all duration-300 ${
+                            isFinished
+                              ? 'border-theme-primary bg-theme-primary-light text-theme-primary font-bold shadow-sm'
+                              : isCurrentQuestion
+                              ? isAnswerCorrect === true
+                                ? 'border-theme-primary bg-theme-primary-light text-theme-primary scale-105'
+                                : isAnswerCorrect === false
+                                ? 'border-red-400 bg-red-50 text-red-600'
+                                : 'border-theme-gold bg-theme-gold/15 text-theme-gold font-bold ring-4 ring-theme-gold/20 shadow-gold-glow animate-pulse'
+                              : 'border-dashed border-theme-border text-theme-text-muted/40 bg-theme-surface'
+                          }`}
+                        >
+                          {isFinished
+                            ? line.correct
+                            : isCurrentQuestion && selectedWord && isAnswerCorrect
+                            ? selectedWord
+                            : '?'}
+                        </span>
+                        <span>{after}</span>
                       </p>
                     );
-                  }
+                  })}
+                </div>
+              )}
 
-                  const before = line.text.slice(0, line.blank_index);
-                  const after = line.text.slice(line.blank_index + (line.correct?.length || 1));
+              {/* 模式 3: 名篇默写模式 */}
+              {activeMode === 'dictation' && (
+                <div className="space-y-3.5 py-1 text-left">
+                  {/* 3.1 未提交时：通篇连续默写答题卷 */}
+                  {!isDictationSubmitted ? (
+                    <div className="space-y-3">
+                      {poem.lines.map((line, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs text-theme-text-muted font-poetry">
+                            <span className="font-bold">第 {idx + 1} 句 ({line.text.length}字)：</span>
+                            <span className="text-[10px] opacity-75">
+                              {dictationInputs[idx] ? `已写 ${dictationInputs[idx].length} 字` : '未作答'}
+                            </span>
+                          </div>
+                          <input
+                            ref={(el) => {
+                              dictationInputsRef.current[idx] = el;
+                            }}
+                            type="text"
+                            value={dictationInputs[idx] || ''}
+                            onChange={(e) => handleDictationInputChange(idx, e.target.value)}
+                            onKeyDown={(e) => handleDictationKeyDown(idx, e)}
+                            placeholder={`在此默写第 ${idx + 1} 句...`}
+                            className="w-full text-base sm:text-lg font-poetry px-4 py-2.5 rounded-xl border border-theme-border bg-theme-surface focus:bg-theme-surface-card focus:outline-none focus:border-theme-primary focus:ring-2 focus:ring-theme-primary/20 text-theme-text transition-all"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* 3.2 已提交时：宗师朱批圈红订正卷 (严格圈出错误之处) */
+                    <div className="space-y-4 pt-1 animate-in fade-in">
+                      {dictationSummary?.lineDiffs.map((diff, lineIdx) => (
+                        <div
+                          key={lineIdx}
+                          className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border/80 space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between text-xs border-b border-theme-border/40 pb-1">
+                            <span className="font-poetry font-bold text-theme-text-muted">
+                              第 {lineIdx + 1} 句校勘：
+                            </span>
+                            {diff.isPerfect ? (
+                              <span className="text-theme-primary font-bold text-[11px] flex items-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-theme-primary" />
+                                <span>严丝合缝 · 全对</span>
+                              </span>
+                            ) : (
+                              <span className="text-red-600 font-bold text-[11px] flex items-center space-x-1">
+                                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                                <span>存在出入 · 已圈红</span>
+                              </span>
+                            )}
+                          </div>
 
-                  return (
-                    <p
-                      key={idx}
-                      className={`flex items-center justify-center transition-all duration-700 ${
-                        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                      }`}
-                    >
-                      <span>{before}</span>
-                      {/* 金字玉框墨槽 */}
-                      <span
-                        className={`inline-flex items-center justify-center mx-1.5 px-3.5 py-1 rounded-xl border-2 transition-all duration-300 ${
-                          isFinished
-                            ? 'border-theme-primary bg-theme-primary-light text-theme-primary font-bold shadow-sm'
-                            : isCurrentQuestion
-                            ? isAnswerCorrect === true
-                              ? 'border-theme-primary bg-theme-primary-light text-theme-primary scale-105'
-                              : isAnswerCorrect === false
-                              ? 'border-red-400 bg-red-50 text-red-600'
-                              : 'border-theme-gold bg-theme-gold/15 text-theme-gold font-bold ring-4 ring-theme-gold/20 shadow-gold-glow animate-pulse'
-                            : 'border-dashed border-theme-border text-theme-text-muted/40 bg-theme-surface'
-                        }`}
-                      >
-                        {isFinished
-                          ? line.correct
-                          : isCurrentQuestion && selectedWord && isAnswerCorrect
-                          ? selectedWord
-                          : '?'}
-                      </span>
-                      <span>{after}</span>
-                    </p>
-                  );
-                })}
-              </div>
+                          {/* 字符级圈红展示 */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-2 text-lg sm:text-xl font-poetry">
+                            {diff.tokens.map((token, tIdx) => {
+                              if (token.type === 'correct') {
+                                return (
+                                  <span
+                                    key={tIdx}
+                                    className="px-1 py-0.5 text-theme-text font-bold"
+                                    title="正确"
+                                  >
+                                    {token.userChar}
+                                  </span>
+                                );
+                              }
+
+                              if (token.type === 'wrong') {
+                                return (
+                                  <span
+                                    key={tIdx}
+                                    className="relative inline-flex flex-col items-center mx-1 group"
+                                  >
+                                    <span className="text-[10px] text-red-600 font-bold font-poetry leading-none mb-1">
+                                      正字:{token.expectedChar}
+                                    </span>
+                                    {/* 重点圈红 */}
+                                    <span
+                                      className="px-2 py-0.5 rounded-full border-2 border-red-500 bg-red-50 text-red-700 font-bold font-poetry shadow-xs ring-2 ring-red-200"
+                                      title={`误写为【${token.userChar}】，正字应为【${token.expectedChar}】`}
+                                    >
+                                      {token.userChar}
+                                    </span>
+                                  </span>
+                                );
+                              }
+
+                              if (token.type === 'missing') {
+                                return (
+                                  <span
+                                    key={tIdx}
+                                    className="relative inline-flex flex-col items-center mx-1 group"
+                                  >
+                                    <span className="text-[10px] text-red-600 font-bold font-poetry leading-none mb-1">
+                                      漏字
+                                    </span>
+                                    {/* 漏字虚线圈红 */}
+                                    <span
+                                      className="px-2 py-0.5 rounded-lg border-2 border-dashed border-red-500 bg-red-50 text-red-700 font-bold font-poetry"
+                                      title={`遗漏字【${token.expectedChar}】`}
+                                    >
+                                      [缺:{token.expectedChar}]
+                                    </span>
+                                  </span>
+                                );
+                              }
+
+                              // extra 多字
+                              return (
+                                <span
+                                  key={tIdx}
+                                  className="relative inline-flex flex-col items-center mx-1 group"
+                                >
+                                  <span className="text-[10px] text-red-600 font-bold font-poetry leading-none mb-1">
+                                    衍字
+                                  </span>
+                                  {/* 多字圈红划除 */}
+                                  <span
+                                    className="px-1.5 py-0.5 rounded-full border-2 border-red-400 bg-red-100 text-red-800 line-through font-bold font-poetry"
+                                    title={`多写了【${token.userChar}】`}
+                                  >
+                                    {token.userChar}
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          {/* 原句对照提示 */}
+                          {!diff.isPerfect && (
+                            <div className="text-[11px] text-theme-text-muted/80 font-poetry pt-1 border-t border-dashed border-theme-border/50">
+                              原句正文：{poem.lines[lineIdx].text}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 创作背景简述 */}
               <div className="pt-3 border-t border-theme-border/50 text-left">
@@ -419,15 +708,24 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
               {activeMode === 'preview' && (
                 <div className="text-center space-y-2">
                   <p className="text-xs text-theme-text-muted">
-                    已阅毕全诗，可进入格律推敲模式领会诗圣词宗的炼字心法！
+                    已阅毕全诗，可进入格律推敲或名篇背默模式检验文心！
                   </p>
-                  <button
-                    onClick={() => setActiveMode('assembly')}
-                    className="w-full py-3 rounded-2xl bg-theme-primary text-white font-bold text-sm shadow-jade-glow hover:bg-theme-primary-hover active:scale-98 transition-all flex items-center justify-center space-x-2"
-                  >
-                    <Sparkles className="w-4 h-4 text-theme-gold" />
-                    <span>开启格律填词推敲 ➔</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setActiveMode('assembly')}
+                      className="py-2.5 rounded-2xl bg-theme-primary text-white font-bold text-xs shadow-jade-glow hover:bg-theme-primary-hover active:scale-98 transition-all flex items-center justify-center space-x-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-theme-gold" />
+                      <span>格律推敲 ➔</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveMode('dictation')}
+                      className="py-2.5 rounded-2xl bg-theme-surface border border-theme-border hover:border-theme-primary text-theme-text font-bold text-xs shadow-xs active:scale-98 transition-all flex items-center justify-center space-x-1.5"
+                    >
+                      <PenTool className="w-3.5 h-3.5 text-theme-primary" />
+                      <span>全篇默写 ➔</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -450,7 +748,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     )}
                   </div>
 
-                  {/* 葵口宋瓷玉牌选项按键 (继承 shape-lobed-petal 异形剪裁与主题样式) */}
+                  {/* 葵口宋瓷玉牌选项按键 */}
                   <div className="grid grid-cols-2 gap-3">
                     {currentLine?.options?.map((opt, i) => {
                       const label = ['A', 'B', 'C', 'D'][i];
@@ -518,56 +816,68 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                 </div>
               )}
 
-              {/* 模式 C：默写输入 */}
+              {/* 模式 C：全篇默写操作台 (未提交时可检查呈交；提交后显示综合评级与重默) */}
               {activeMode === 'dictation' && (
                 <div className="space-y-3">
-                  {!dictationDone ? (
-                    <div className="p-3.5 bg-theme-surface-card rounded-2xl border border-theme-border space-y-2.5 shadow-sm">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-theme-text">
-                          请默写第 {dictationStep + 1} 句：
+                  {!isDictationSubmitted ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-theme-text-muted px-1">
+                        <span>
+                          进度：已填写{' '}
+                          <span className="font-bold text-theme-primary">
+                            {dictationInputs.filter((t) => t.trim().length > 0).length}
+                          </span>{' '}
+                          / {poem.lines.length} 句
                         </span>
-                        <span className="text-theme-text-muted font-mono">
-                          {dictationStep + 1} / {poem.lines.length}
+                        <button
+                          onClick={handleResetDictation}
+                          className="hover:text-theme-primary flex items-center space-x-1"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>清空重填</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleSubmitDictation}
+                        className="w-full py-3 rounded-2xl bg-theme-primary text-white font-bold text-sm shadow-jade-glow hover:bg-theme-primary-hover active:scale-98 transition-all flex items-center justify-center space-x-2"
+                      >
+                        <Send className="w-4 h-4 text-theme-gold" />
+                        <span>检查完毕 · 呈交卷轴批改</span>
+                      </button>
+                    </div>
+                  ) : (
+                    /* 批改评级面板 */
+                    <div className="space-y-3 animate-in fade-in">
+                      <div className="p-4 bg-theme-surface-card border border-theme-border rounded-2xl flex items-center justify-between shadow-xs">
+                        <div className="space-y-0.5 text-left">
+                          <h4 className="font-bold text-sm font-poetry text-theme-text">
+                            {dictationSummary?.gradeTitle}
+                          </h4>
+                          <p className="text-xs text-theme-text-muted">
+                            共 {dictationSummary?.totalChars} 字 · 正字 {dictationSummary?.totalCorrect} 字 · 错漏 {dictationSummary?.totalErrors} 处
+                          </p>
+                        </div>
+                        <span className="text-base font-bold font-poetry px-3.5 py-1 rounded-full bg-theme-primary text-white shadow-sm">
+                          {dictationSummary?.scorePercent} 分
                         </span>
                       </div>
 
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          value={dictationInput}
-                          onChange={(e) => setDictationInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleDictationCheck()}
-                          placeholder="在此输入本句诗词（可省略标点）"
-                          className="flex-1 px-4 py-2 text-sm rounded-xl border border-theme-border bg-theme-surface focus:bg-theme-surface-card focus:outline-none focus:border-theme-primary font-poetry text-theme-text"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={handleDictationCheck}
-                          className="px-5 py-2 rounded-xl bg-theme-primary text-white font-bold text-xs shadow-sm hover:bg-theme-primary-hover active:scale-95"
+                          onClick={handleResetDictation}
+                          className="py-2.5 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-card text-theme-text font-bold text-xs flex items-center justify-center space-x-1 transition-all"
                         >
-                          核验
+                          <RotateCcw className="w-3.5 h-3.5 text-theme-primary" />
+                          <span>再默写一遍</span>
+                        </button>
+                        <button
+                          onClick={onClose}
+                          className="py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs shadow-jade-glow hover:bg-theme-primary-hover transition-all"
+                        >
+                          收卷 · 重返山河
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-theme-primary-light border border-theme-border rounded-2xl text-center space-y-2">
-                      <h4 className="font-bold text-theme-primary font-poetry text-base">
-                        🎉 名篇熟诵 · 全诗默毕！
-                      </h4>
-                      <p className="text-xs text-theme-text-muted">
-                        错漏次数：{dictationErrors} 次。胸有锦绣，落笔生花！
-                      </p>
-                      <button
-                        onClick={() => {
-                          setDictationDone(false);
-                          setDictationStep(0);
-                          setDictationInput('');
-                        }}
-                        className="px-4 py-1.5 rounded-full bg-theme-primary text-white text-xs font-bold inline-flex items-center space-x-1"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>再默写一遍</span>
-                      </button>
                     </div>
                   )}
                 </div>
@@ -644,7 +954,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
             {/* 可滚动解析长卷内容 */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar text-theme-text">
               
-              {/* 1. 【全篇白话今译】(精读模式常驻展开；推敲/默写时折叠遮瑕，避免直接剧透默写) */}
+              {/* 1. 【全篇白话今译】(精读模式/提交后常驻展开；默写与推敲过程中默认柔和遮瑕) */}
               {(analysisFilter === 'all' || analysisFilter === 'translation') && (
                 <section className="p-4 sm:p-5 rounded-2xl bg-theme-surface-card border border-theme-border shadow-xs space-y-2 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-theme-primary" />
@@ -655,8 +965,8 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                       <span>【全篇白话今译】</span>
                     </div>
 
-                    {/* 推敲/默写模式下的防剧透开关 */}
-                    {activeMode !== 'preview' && !isFinished && !dictationDone && (
+                    {/* 防剧透开关 */}
+                    {activeMode !== 'preview' && !isFinished && !isDictationSubmitted && (
                       <button
                         onClick={() => setShowTranslationHint(!showTranslationHint)}
                         className="text-[11px] font-bold text-theme-gold hover:underline flex items-center space-x-1"
@@ -667,8 +977,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     )}
                   </div>
 
-                  {/* 译文内容：精读模式/完成状态下直接显示；推敲默写状态下默认柔和遮瑕，按需查看 */}
-                  {activeMode === 'preview' || isFinished || dictationDone || showTranslationHint ? (
+                  {activeMode === 'preview' || isFinished || isDictationSubmitted || showTranslationHint ? (
                     <p className="text-xs sm:text-sm leading-relaxed text-theme-text font-sans font-medium pl-1 animate-in fade-in">
                       {poem.translation}
                     </p>
@@ -691,7 +1000,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                 </section>
               )}
 
-              {/* 2. 【重点字词训诂与典故出处】(当前正在考查的字自动遮瑕，答出或精读时完全展开) */}
+              {/* 2. 【重点字词训诂与典故出处】 */}
               {(analysisFilter === 'all' || analysisFilter === 'keywords') && (
                 <section className="space-y-2.5">
                   <div className="flex items-center space-x-2 text-theme-text font-poetry font-bold text-sm px-1">
@@ -722,7 +1031,6 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
-                              {/* 若该词为当前填空答案且尚未答出，则隐去原字避免送分 */}
                               <span className="font-bold text-base font-poetry text-theme-text">
                                 {isAnswerWord && !isWordRevealed ? '【？】（待推敲字眼）' : kw.word}
                               </span>
@@ -763,7 +1071,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                 </section>
               )}
 
-              {/* 3. 【名家美学绝评与章法艺术赏析】(文学章法无直接剧透，全面供玩家悟道) */}
+              {/* 3. 【名家美学绝评与章法艺术赏析】 */}
               {(analysisFilter === 'all' || analysisFilter === 'appreciation') && (
                 <section className="space-y-3">
                   <div className="flex items-center space-x-2 text-theme-text font-poetry font-bold text-sm px-1">
