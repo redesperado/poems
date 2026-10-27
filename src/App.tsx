@@ -8,8 +8,9 @@ import { PoemAssemblyModal } from './ui/components/PoemAssemblyModal';
 import { CollectionModal } from './ui/components/CollectionModal';
 import { LifeChoiceModal } from './ui/components/LifeChoiceModal';
 import { CrisisModal } from './ui/components/CrisisModal';
+import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
 import { GameEvent } from './types/event';
-import { Sparkles, Compass, GitFork, Flame } from 'lucide-react';
+import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -33,6 +34,10 @@ export const App: React.FC = () => {
     activeCrisis,
     triggerCrisisForEvent,
     dismissCrisis,
+    activeRetrospective,
+    setActiveRetrospective,
+    triggerRetrospectiveForEvent,
+    resetPoetJourney,
     completeEvent,
     isCollectionOpen,
     setIsCollectionOpen,
@@ -58,7 +63,9 @@ export const App: React.FC = () => {
   const handleTimelineEventClick = (event: GameEvent, isCurrent: boolean, isCompleted: boolean) => {
     if (!isCurrent && !isCompleted) return;
 
-    if (event.triggers_crisis || event.type === 'crisis_response') {
+    if (event.type === 'passing' || event.triggers_retrospective) {
+      triggerRetrospectiveForEvent(event);
+    } else if (event.triggers_crisis || event.type === 'crisis_response') {
       triggerCrisisForEvent(event);
     } else if (event.triggers_choice_id && !choicesMade[event.triggers_choice_id]) {
       triggerLifeChoice(event.triggers_choice_id);
@@ -248,6 +255,20 @@ export const App: React.FC = () => {
 
             {/* 操作按钮区 */}
             <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
+              {/* 如果是诗人谢幕与生平总评 */}
+              {(activeEventNotice.type === 'passing' || activeEventNotice.triggers_retrospective) && (
+                <button
+                  onClick={() => {
+                    triggerRetrospectiveForEvent(activeEventNotice);
+                    setActiveEventNotice(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-600 via-purple-600 to-indigo-700 hover:from-amber-500 hover:to-indigo-600 text-white text-xs font-bold shadow-lg flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-300" />
+                  <span>阅览诗仙羽化 · 一生总评</span>
+                </button>
+              )}
+
               {/* 如果是朝代危机 */}
               {(activeEventNotice.type === 'crisis_response' || activeEventNotice.triggers_crisis) && (
                 <button
@@ -321,6 +342,26 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 9. 诗人谢幕 · 一生总评与宗师定评全景弹窗 (Poet Retrospective) */}
+      {activeRetrospective && (
+        <PoetRetrospectiveModal
+          poet={currentPoet}
+          retrospective={activeRetrospective}
+          unlockedCount={unlockedPoemIds.length}
+          totalCount={activePack.poems.length}
+          mood={mood}
+          onOpenCollection={() => {
+            setActiveRetrospective(null);
+            setIsCollectionOpen(true);
+          }}
+          onRestartJourney={() => {
+            setActiveRetrospective(null);
+            resetPoetJourney();
+          }}
+          onClose={() => setActiveRetrospective(null)}
+        />
       )}
     </div>
   );

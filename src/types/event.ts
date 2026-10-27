@@ -6,7 +6,27 @@ export type EventType =
   | 'exile'
   | 'meeting'
   | 'crisis_response'
-  | 'choice';
+  | 'choice'
+  | 'passing';
+
+export interface MasterAppraisal {
+  critic: string;
+  relationship: string;
+  quote: string;
+  comment: string;
+}
+
+export interface PoetRetrospectiveData {
+  passing_year: number;
+  passing_location_name: string;
+  epitaph_title: string;
+  swan_song_title?: string;
+  swan_song_lines?: string[];
+  departure_narrative: string;
+  lifetime_summary: string;
+  master_appraisals: MasterAppraisal[];
+  historical_legacy: string;
+}
 
 export interface CrisisDetails {
   title: string;
@@ -29,6 +49,7 @@ export interface GameEvent {
   triggers_choice_id?: string | null;
   triggers_poem_id?: string | null;
   triggers_crisis?: CrisisDetails | null;
+  triggers_retrospective?: PoetRetrospectiveData | null;
   next_event_id?: string | null;
 }
 

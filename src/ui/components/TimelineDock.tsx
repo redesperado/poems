@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { GameEvent } from '../../types/event';
-import { Sparkles, Calendar, GitFork, Lock, Check, Flame } from 'lucide-react';
+import { Sparkles, Calendar, GitFork, Lock, Check, Flame, Crown } from 'lucide-react';
 
 interface TimelineDockProps {
   events: GameEvent[];
@@ -111,6 +111,7 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
             const hasPoem = !!event.triggers_poem_id;
             const hasChoice = !!event.triggers_choice_id;
             const isCrisis = event.type === 'crisis_response' || !!event.triggers_crisis;
+            const isPassing = event.type === 'passing' || !!event.triggers_retrospective;
             const isPoemUnlocked = hasPoem && unlockedPoemIds.includes(event.triggers_poem_id!);
 
             return (
@@ -122,8 +123,14 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
                 {/* 当前节点专属指示徽章 */}
                 {isCurrent && (
                   <div className="absolute -top-5.5 z-10 animate-bounce">
-                    <span className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[9px] font-bold shadow-md tracking-wider whitespace-nowrap">
-                      当下历程
+                    <span className={`px-1.5 py-0.5 rounded-full text-white text-[9px] font-bold shadow-md tracking-wider whitespace-nowrap ${
+                      isPassing
+                        ? 'bg-gradient-to-r from-amber-500 via-purple-600 to-amber-500'
+                        : isCrisis
+                        ? 'bg-gradient-to-r from-red-600 to-amber-600'
+                        : 'bg-gradient-to-r from-amber-500 to-amber-600'
+                    }`}>
+                      {isPassing ? '终章 · 骑鲸捉月' : '当下历程'}
                     </span>
                   </div>
                 )}
@@ -162,11 +169,15 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
                       isLocked
                         ? 'border border-dashed border-slate-400 text-slate-400 bg-slate-100/60 dark:bg-slate-800/60'
                         : isCurrent
-                        ? isCrisis
+                        ? isPassing
+                          ? 'bg-gradient-to-r from-amber-500 to-purple-600 text-white ring-4 ring-amber-300/80 shadow-lg scale-110 animate-pulse'
+                          : isCrisis
                           ? 'bg-red-600 text-white ring-4 ring-red-400/70 shadow-lg scale-110 animate-pulse'
                           : 'bg-amber-500 text-white ring-4 ring-amber-300/70 shadow-lg scale-110 animate-pulse'
                         : isCompleted
-                        ? isCrisis
+                        ? isPassing
+                          ? 'bg-purple-900 text-amber-200 ring-2 ring-amber-400/50 shadow-md'
+                          : isCrisis
                           ? 'bg-red-800 text-red-100 ring-2 ring-red-400/40'
                           : hasPoem && isPoemUnlocked
                           ? 'bg-theme-gold text-white shadow-gold-glow ring-2 ring-amber-300'
@@ -177,13 +188,17 @@ export const TimelineDock: React.FC<TimelineDockProps> = ({
                     {isLocked ? (
                       <Lock className="w-3 h-3 text-slate-500" />
                     ) : isCompleted ? (
-                      hasPoem ? (
+                      isPassing ? (
+                        <Crown className="w-3.5 h-3.5 text-amber-300" />
+                      ) : hasPoem ? (
                         <Sparkles className="w-3.5 h-3.5" />
                       ) : isCrisis ? (
                         <Flame className="w-3.5 h-3.5 text-red-200" />
                       ) : (
                         <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                       )
+                    ) : isPassing ? (
+                      <Crown className="w-4 h-4 text-amber-200 animate-bounce" />
                     ) : isCrisis ? (
                       <Flame className="w-4 h-4 text-amber-200 animate-bounce" />
                     ) : hasPoem ? (

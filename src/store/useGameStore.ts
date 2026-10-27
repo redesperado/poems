@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MoodState } from '../types/mood';
 import { LocationData } from '../types/location';
 import { PoemData } from '../types/poem';
-import { GameEvent, LifeChoice, LifeChoiceOption } from '../types/event';
+import { GameEvent, LifeChoice, LifeChoiceOption, PoetRetrospectiveData } from '../types/event';
 import { PoetData } from '../types/poet';
 import { LOCATIONS } from '../data/locations';
 import { POET_PACKS, PoetPack } from '../data/poets';
@@ -35,6 +35,7 @@ export interface GameStoreState {
   activeEvent: GameEvent | null;
   activeLifeChoice: LifeChoice | null;
   activeCrisis: ActiveCrisisState | null;
+  activeRetrospective: PoetRetrospectiveData | null;
   isCollectionOpen: boolean;
   isLoading: boolean;
 }
@@ -60,6 +61,7 @@ export function useGameStore() {
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null);
   const [activeLifeChoice, setActiveLifeChoice] = useState<LifeChoice | null>(null);
   const [activeCrisis, setActiveCrisis] = useState<ActiveCrisisState | null>(null);
+  const [activeRetrospective, setActiveRetrospective] = useState<PoetRetrospectiveData | null>(null);
 
   const [isCollectionOpen, setIsCollectionOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -233,6 +235,10 @@ export function useGameStore() {
               eventId: nextEvent.id,
             });
           }
+          // 如果下一个事件是诗人故去生平总评
+          if (nextEvent.triggers_retrospective) {
+            setActiveRetrospective(nextEvent.triggers_retrospective);
+          }
         }
 
         // 持久化到 IndexedDB
@@ -361,6 +367,9 @@ export function useGameStore() {
               eventId: nextEvent.id,
             });
           }
+          if (nextEvent.triggers_retrospective) {
+            setActiveRetrospective(nextEvent.triggers_retrospective);
+          }
         }
       }
 
@@ -381,6 +390,42 @@ export function useGameStore() {
     },
     [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme]
   );
+
+  // 触发终极生平总评
+  const triggerRetrospectiveForEvent = useCallback((event: GameEvent) => {
+    if (event.triggers_retrospective) {
+      setActiveRetrospective(event.triggers_retrospective);
+    }
+  }, []);
+
+  // 重走诗仙长卷
+  const resetPoetJourney = useCallback(() => {
+    setCompletedEventIds([]);
+    const startYear = currentPoet.start_year || 701;
+    setCurrentYear(startYear);
+    if (LOCATIONS[currentPoet.start_location_id]) {
+      setCurrentLocation(LOCATIONS[currentPoet.start_location_id]);
+    }
+    setMood(currentPoet.initial_mood);
+    setActiveRetrospective(null);
+    setActiveCrisis(null);
+    setActivePoemToAssemble(null);
+    setActiveLifeChoice(null);
+
+    persistGameSave({
+      id: `save_${currentPoet.id}`,
+      poetId: currentPoet.id,
+      year: startYear,
+      locationId: currentPoet.start_location_id || 'sichuan',
+      mood: currentPoet.initial_mood,
+      unlockedPoemIds,
+      poemScores,
+      completedEventIds: [],
+      choicesMade: {},
+      currentTheme,
+      updatedAt: Date.now(),
+    });
+  }, [currentPoet, unlockedPoemIds, poemScores, currentTheme]);
 
   return {
     currentPoet,
@@ -411,6 +456,10 @@ export function useGameStore() {
     setActiveCrisis,
     triggerCrisisForEvent,
     dismissCrisis,
+    activeRetrospective,
+    setActiveRetrospective,
+    triggerRetrospectiveForEvent,
+    resetPoetJourney,
     completeEvent,
     isCollectionOpen,
     setIsCollectionOpen,
