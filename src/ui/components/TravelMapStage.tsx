@@ -6,6 +6,14 @@ import { MAJOR_CITIES, CityCulturalData } from '../../data/cities';
 import { CityDetailModal } from './CityDetailModal';
 import { WorldChronicleDrawer } from './WorldChronicleDrawer';
 import {
+  MAJOR_LAKES,
+  OCEAN_WATER_POLYGON,
+  RIVER_NETWORKS,
+  TANG_EMPIRE_BORDER,
+  SONG_EMPIRE_BORDER,
+  REGIONAL_DIVISIONS,
+} from '../../data/geoHeritage';
+import {
   getPoetLocationsAtYear,
   WorldPoet,
 } from '../../engine/world/poetsWorld';
@@ -21,6 +29,8 @@ import {
   MapPin,
   BookOpen,
   Layers,
+  Waves,
+  Shield,
 } from 'lucide-react';
 
 interface TravelMapStageProps {
@@ -121,6 +131,7 @@ const MOUNTAIN_LANDMARKS: Array<{ name: string; pos: [number, number]; desc: str
   { name: '巫山三峡', pos: [31.05, 109.9], desc: '巴东三峡巫峡长' },
   { name: '匡庐秀峰', pos: [29.56, 115.98], desc: '飞流直下三千尺' },
   { name: '泰山极顶', pos: [36.25, 117.1], desc: '会当凌绝顶' },
+  { name: '终南神山', pos: [34.05, 108.95], desc: '太乙近天都' },
 ];
 
 export const TravelMapStage: React.FC<TravelMapStageProps> = ({
@@ -134,6 +145,10 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
 
   // 地图底图样式模式: 'warm-silk' (青绿暖绢金字塔瓦片) | 'warm-carto' (实景舆图暖玉瓦片)
   const [basemapStyle, setBasemapStyle] = useState<'warm-silk' | 'warm-carto'>('warm-silk');
+
+  // 疆域与水系图层显示状态
+  const [showTerritory, setShowTerritory] = useState<boolean>(true);
+  const [showWaterbodies, setShowWaterbodies] = useState<boolean>(true);
 
   // 选中的城市人文详情弹窗
   const [activeCityDetail, setActiveCityDetail] = useState<CityCulturalData | null>(null);
@@ -200,7 +215,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   }, [getCityLatLng]);
 
   // =========================================================================
-  // Leaflet 核心地图生命周期与瓦片切图系统初始化
+  // Leaflet 核心地图生命周期与江河湖泊、疆域版图全面渲染
   // =========================================================================
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -312,49 +327,196 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       baseTileLayerRef.current = cartoTileLayer;
     }
 
-    // 3. 绘制真实大江大河干流
+    // =======================================================================
+    // 3. 【重点填充】东海沧海海域水面填充 (Ocean Water Polygon)
+    // =======================================================================
+    if (showWaterbodies) {
+      const oceanPoly = L.polygon(OCEAN_WATER_POLYGON, {
+        fillColor: '#80C2B4',
+        fillOpacity: 0.35,
+        color: '#0D9488',
+        weight: 1.5,
+        dashArray: '6, 6',
+        stroke: true,
+      }).addTo(map);
+      oceanPoly.bindTooltip('【沧海万里】东海浩瀚 · 碧波万顷接天流', {
+        sticky: true,
+        className: 'font-poetry text-xs text-emerald-950 bg-white/95 border border-emerald-600/40 shadow-sm',
+      });
+    }
+
+    // =======================================================================
+    // 4. 【重点填充】王朝帝国大一统疆域轮廓 (Imperial Territory Boundary)
+    // =======================================================================
+    if (showTerritory) {
+      const imperialBorder = dynasty === 'tang' ? TANG_EMPIRE_BORDER : SONG_EMPIRE_BORDER;
+      const dynastyTitle = dynasty === 'tang' ? '大唐天朝版图' : '大宋正朔版图';
+      const dynastyDesc =
+        dynasty === 'tang'
+          ? '【盛唐大一统疆域】九天阊阖开宫殿，万国衣冠拜冕旒。东临沧海，西控安西，四海宾服。'
+          : '【两宋华夏正朔疆域】华夏民族之文化，历数千载之演进，造极于赵宋之世。';
+
+      const territoryLayer = L.polygon(imperialBorder, {
+        fillColor: '#DCF0DE',
+        fillOpacity: 0.18,
+        color: '#9A3412', // 古代朱砂暗红疆界线
+        weight: 2.8,
+        dashArray: '8, 6',
+        opacity: 0.85,
+      }).addTo(map);
+
+      territoryLayer.bindTooltip(
+        `<div class="space-y-0.5"><div class="font-bold text-amber-900 font-poetry">🏛️ ${dynastyTitle}</div><div class="text-xs text-slate-800">${dynastyDesc}</div></div>`,
+        {
+          sticky: true,
+          className: 'font-poetry text-xs text-amber-950 bg-amber-50/98 border border-amber-400/80 shadow-md p-2',
+        }
+      );
+
+      // 唐代十道 / 两宋路制宏观行政大区分界线 (古金细虚线)
+      REGIONAL_DIVISIONS.forEach((div) => {
+        const divLine = L.polyline(div.path, {
+          color: '#854D0E',
+          weight: 1.6,
+          dashArray: '5, 5',
+          opacity: 0.45,
+        }).addTo(map);
+        divLine.bindTooltip(`【${div.name}】历史行政区划要冲`, {
+          sticky: true,
+          className: 'font-poetry text-[10px] text-amber-900 bg-white/90 border border-amber-300',
+        });
+      });
+    }
+
+    // =======================================================================
+    // 5. 【重点填充】全国各大名湖水体填充 (Major Lakes Surface Polygons)
+    // =======================================================================
+    if (showWaterbodies) {
+      MAJOR_LAKES.forEach((lake) => {
+        const lakePoly = L.polygon(lake.polygon, {
+          fillColor: '#38A89D',
+          fillOpacity: 0.65,
+          color: '#0F766E',
+          weight: 1.8,
+          opacity: 0.95,
+        }).addTo(map);
+
+        lakePoly.bindTooltip(
+          `<div class="space-y-0.5"><div class="font-bold text-emerald-900 font-poetry">🌊 ${lake.name} (${lake.ancientName})</div><div class="text-[11px] text-slate-700 font-poetry">${lake.desc}</div></div>`,
+          {
+            sticky: true,
+            className: 'font-poetry text-xs text-emerald-950 bg-emerald-50/98 border border-emerald-600/60 shadow-md p-2',
+          }
+        );
+
+        // 计算湖泊多边形几何中心放置典雅发光水体铭牌
+        const latSum = lake.polygon.reduce((acc, p) => acc + p[0], 0);
+        const lngSum = lake.polygon.reduce((acc, p) => acc + p[1], 0);
+        const centerLat = latSum / lake.polygon.length;
+        const centerLng = lngSum / lake.polygon.length;
+
+        const lakeLabelIcon = L.divIcon({
+          className: 'custom-div-icon pointer-events-none',
+          html: `
+            <div class="px-2 py-0.5 rounded-full bg-white/95 text-emerald-950 font-poetry font-bold text-[10px] whitespace-nowrap shadow-sm border border-emerald-600/40 backdrop-blur-sm flex items-center space-x-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>
+              <span>${lake.name}</span>
+            </div>
+          `,
+          iconSize: [60, 20],
+          iconAnchor: [30, 10],
+        });
+        L.marker([centerLat, centerLng], { icon: lakeLabelIcon, interactive: false }).addTo(map);
+      });
+    }
+
+    // =======================================================================
+    // 6. 真实大江大河全水系网 (干流 + 十大关键支流)
+    // =======================================================================
     // A. 黄河之水天上来 (双层暖金泥金色波光)
     L.polyline(YELLOW_RIVER_LAT_LNG, {
       color: '#F59E0B',
-      weight: 7,
-      opacity: 0.35,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(map);
-    L.polyline(YELLOW_RIVER_LAT_LNG, {
-      color: '#B45309',
-      weight: 4.5,
-      opacity: 0.95,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(map);
-
-    // B. 万里长江浩荡东去 (双层翡翠碧玉流光)
-    L.polyline(YANGTZE_RIVER_LAT_LNG, {
-      color: '#10B981',
       weight: 8,
       opacity: 0.35,
       lineCap: 'round',
       lineJoin: 'round',
     }).addTo(map);
-    L.polyline(YANGTZE_RIVER_LAT_LNG, {
-      color: '#0D9488',
-      weight: 5.5,
+    const yellowRiverLine = L.polyline(YELLOW_RIVER_LAT_LNG, {
+      color: '#B45309',
+      weight: 5.0,
       opacity: 0.95,
       lineCap: 'round',
       lineJoin: 'round',
     }).addTo(map);
+    yellowRiverLine.bindTooltip('【九曲黄河】万里沙 · 黄河之水天上来，奔流到海不复回', {
+      sticky: true,
+      className: 'font-poetry text-xs text-amber-950 bg-amber-50/95 border border-amber-500/50',
+    });
+
+    // B. 万里长江浩荡东去 (双层翡翠碧玉流光)
+    L.polyline(YANGTZE_RIVER_LAT_LNG, {
+      color: '#10B981',
+      weight: 9,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(map);
+    const yangtzeRiverLine = L.polyline(YANGTZE_RIVER_LAT_LNG, {
+      color: '#0D9488',
+      weight: 6.0,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(map);
+    yangtzeRiverLine.bindTooltip('【万里长江】孤帆远影碧空尽，唯见长江天际流 · 华夏黄金水道', {
+      sticky: true,
+      className: 'font-poetry text-xs text-emerald-950 bg-emerald-50/95 border border-emerald-600/50',
+    });
 
     // C. 隋唐宋京杭大运河 (青翠虚线水驿)
-    L.polyline(GRAND_CANAL_LAT_LNG, {
+    const canalLine = L.polyline(GRAND_CANAL_LAT_LNG, {
       color: '#059669',
-      weight: 3.2,
+      weight: 3.5,
       dashArray: '6, 6',
-      opacity: 0.85,
+      opacity: 0.9,
       lineCap: 'round',
     }).addTo(map);
+    canalLine.bindTooltip('【京杭大运河】尽道隋亡为此河，至今千里赖通波 · 汴河通济渠与江南水驿', {
+      sticky: true,
+      className: 'font-poetry text-xs text-emerald-950 bg-white/95 border border-emerald-500/40',
+    });
 
-    // 4. 绘制古代官道陆路驿路线网 (连接十六大名城，角色行历通道)
+    // D. 长江黄河十大支流水网 (渭河、汉水、嘉陵江、岷江、汾河、淮水、湘江、赣江、珠江、钱塘江)
+    if (showWaterbodies) {
+      RIVER_NETWORKS.forEach((river) => {
+        // 支流柔光底层
+        L.polyline(river.path, {
+          color: '#10B981',
+          weight: river.weight + 2.5,
+          opacity: 0.28,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+
+        // 支流水脉主体
+        const riverLine = L.polyline(river.path, {
+          color: river.id.includes('wei') ? '#B45309' : '#0D9488',
+          weight: river.weight,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+
+        riverLine.bindTooltip(`【${river.name}】${river.desc}`, {
+          sticky: true,
+          className: 'font-poetry text-xs text-slate-900 bg-white/95 border border-emerald-600/40',
+        });
+      });
+    }
+
+    // =======================================================================
+    // 7. 绘制古代官道陆路驿路线网 (连接十六大名城，角色行历通道)
+    // =======================================================================
     ANCIENT_ROADS.forEach(([c1, c2]) => {
       const p1 = getCityLatLng(c1);
       const p2 = getCityLatLng(c2);
@@ -366,7 +528,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       }).addTo(map);
     });
 
-    // 5. 标注名山胜迹 (工笔山岳图腾印记)
+    // 8. 标注名山胜迹 (工笔山岳图腾印记)
     MOUNTAIN_LANDMARKS.forEach((mtn) => {
       const mtnIcon = L.divIcon({
         className: 'custom-div-icon pointer-events-none',
@@ -382,7 +544,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       L.marker(mtn.pos, { icon: mtnIcon, interactive: false }).addTo(map);
     });
 
-    // 6. 渲染全域十六大名城印鉴与楼阁徽标
+    // 9. 渲染全域十六大名城印鉴与楼阁徽标
     Object.values(MAJOR_CITIES).forEach((city) => {
       const latLng: [number, number] = [city.coordinates[1], city.coordinates[0]];
       const isCurrent =
@@ -440,7 +602,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       });
     });
 
-    // 7. 渲染同时代其他文人自主行历棋子
+    // 10. 渲染同时代其他文人自主行历棋子
     otherPoets.forEach(({ poet, currentCityId, status, recentWork, age, isAlive }) => {
       if (!isAlive) return;
       const cityLatLng = getCityLatLng(currentCityId);
@@ -481,7 +643,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       poetMarkersMapRef.current[poet.id] = poetMarker;
     });
 
-    // 8. 渲染主角 (李白/苏轼) 当前所处行历棋子
+    // 11. 渲染主角 (李白/苏轼) 当前所处行历棋子
     const initialPlayerLatLng = getCityLatLng(currentLocation.id);
     const playerIcon = L.divIcon({
       className: 'custom-div-icon pointer-events-none z-30',
@@ -507,7 +669,15 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, [basemapStyle, dynasty, currentLocation.id, getCityLatLng, otherPoets]);
+  }, [
+    basemapStyle,
+    dynasty,
+    currentLocation.id,
+    getCityLatLng,
+    otherPoets,
+    showTerritory,
+    showWaterbodies,
+  ]);
 
   // 当当前所处地点变化时，执行平滑行历移动动画
   useEffect(() => {
@@ -579,6 +749,32 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
           <Layers className="w-4 h-4 text-emerald-800" />
         </button>
 
+        {/* 疆域轮廓开关 */}
+        <button
+          onClick={() => setShowTerritory(!showTerritory)}
+          title={showTerritory ? '隐藏疆域版图轮廓' : '显示王朝疆域版图'}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center active:scale-95 transition-all ${
+            showTerritory
+              ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm'
+              : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+        </button>
+
+        {/* 江河湖泊填充开关 */}
+        <button
+          onClick={() => setShowWaterbodies(!showWaterbodies)}
+          title={showWaterbodies ? '隐藏湖泊海域填充' : '开启江河湖海全填充'}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center active:scale-95 transition-all ${
+            showWaterbodies
+              ? 'bg-teal-100 text-teal-900 border border-teal-300 shadow-sm'
+              : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <Waves className="w-4 h-4" />
+        </button>
+
         <div className="w-5 h-[1px] bg-slate-300 my-0.5" />
 
         <button
@@ -607,11 +803,11 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
         </button>
       </div>
 
-      {/* 4. 探索指南微标 (左下角) */}
-      <div className="absolute left-4 bottom-24 z-[1000] hidden sm:flex items-center space-x-2.5 bg-white/95 backdrop-blur-md border border-slate-300 px-4 py-2 rounded-full text-xs text-slate-800 shadow-md">
+      {/* 4. 探索指南与图例微标 (左下角) */}
+      <div className="absolute left-4 bottom-24 z-[1000] hidden sm:flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-slate-300 px-4 py-2 rounded-full text-xs text-slate-800 shadow-md">
         <Compass className="w-4 h-4 text-emerald-800 shrink-0" />
         <span className="font-medium">
-          Leaflet金字塔瓦片切图 · 滚轮/手势缩放漫游 · 点击名城展开风土 · 点击文人探查同期行迹
+          点击各大名湖/黄河长江/疆界可查阅典故 · 滚轮缩放 · 点击名城开启风土 · 点击文人探查同期行迹
         </span>
       </div>
 
