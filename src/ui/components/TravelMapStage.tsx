@@ -23,7 +23,6 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Compass,
   MapPin,
   BookOpen,
   Layers,
@@ -694,16 +693,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
         </button>
       </div>
 
-      {/* 4. 探索指南与当前缩放分级提示微标 (左下角) */}
-      <div className="absolute left-4 bottom-24 z-[1000] hidden sm:flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-slate-300 px-4 py-2 rounded-full text-xs text-slate-800 shadow-md">
-        <Compass className="w-4 h-4 text-emerald-800 shrink-0" />
-        <span className="font-medium">
-          十六大重点历史都会已标注文明地点 · 虚线为当朝行政管辖界 · 点击名城开启人文风貌与游历
-        </span>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono font-bold">
-          {zoomLevel.toFixed(1)}x 视野
-        </span>
-      </div>
+
 
       {/* 5. 同行诗人档案弹窗 (点击地图上其他文人时弹出) */}
       {selectedPoetDossier && (
