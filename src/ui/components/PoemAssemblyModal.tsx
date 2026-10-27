@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PoemData, PoemLine } from '../../types/poem';
 import confetti from 'canvas-confetti';
 import {
@@ -121,14 +121,93 @@ function diffPoemLine(userRaw: string, targetRaw: string): LineDiffResult {
   };
 }
 
+interface LineScaleConfig {
+  charBox: string;
+  charFont: string;
+  charHeight: string;
+  containerGap: string;
+  getBlankWidth: (bLen: number) => string;
+}
+
 /**
- * 根据填空字数动态计算填空槽宽度，确保与标准字宽/间隙完全对齐 (单字: 32px/40px, 双字: 68px/88px)
+ * 智能自适应字号与字模槽宽度系统：
+ * 综合全诗最大行长与当前行长，实现五言舒展、七言温润、长歌自适应收缩，杜绝溢出与拥挤
  */
-function getBlankSlotWidthClass(len: number): string {
-  if (len === 1) return 'w-8 sm:w-10';
-  if (len === 2) return 'w-[68px] sm:w-[88px]';
-  if (len === 3) return 'w-[104px] sm:w-[136px]';
-  return 'w-8 sm:w-10';
+function getLineScale(lineLen: number, poemMaxLen: number): LineScaleConfig {
+  const targetLen = Math.max(lineLen, poemMaxLen);
+
+  if (targetLen <= 5) {
+    return {
+      charBox: 'w-8 sm:w-10 h-10 sm:h-12',
+      charHeight: 'h-10 sm:h-12',
+      charFont: 'text-xl sm:text-2xl font-bold',
+      containerGap: 'gap-1.5 sm:gap-2',
+      getBlankWidth: (bLen: number) => {
+        if (bLen === 1) return 'w-8 sm:w-10';
+        if (bLen === 2) return 'w-[70px] sm:w-[88px]';
+        if (bLen === 3) return 'w-[106px] sm:w-[136px]';
+        return 'w-[144px] sm:w-[184px]';
+      },
+    };
+  }
+
+  if (targetLen <= 7) {
+    return {
+      charBox: 'w-7 sm:w-8.5 h-9 sm:h-10.5',
+      charHeight: 'h-9 sm:h-10.5',
+      charFont: 'text-lg sm:text-xl font-bold',
+      containerGap: 'gap-1 sm:gap-1.5',
+      getBlankWidth: (bLen: number) => {
+        if (bLen === 1) return 'w-7 sm:w-8.5';
+        if (bLen === 2) return 'w-[60px] sm:w-[74px]';
+        if (bLen === 3) return 'w-[92px] sm:w-[114px]';
+        return 'w-[124px] sm:w-[154px]';
+      },
+    };
+  }
+
+  if (targetLen <= 10) {
+    return {
+      charBox: 'w-5.5 sm:w-7 h-7.5 sm:h-9',
+      charHeight: 'h-7.5 sm:h-9',
+      charFont: 'text-base sm:text-lg font-bold',
+      containerGap: 'gap-0.5 sm:gap-1',
+      getBlankWidth: (bLen: number) => {
+        if (bLen === 1) return 'w-5.5 sm:w-7';
+        if (bLen === 2) return 'w-[46px] sm:w-[60px]';
+        if (bLen === 3) return 'w-[70px] sm:w-[92px]';
+        return 'w-[94px] sm:w-[124px]';
+      },
+    };
+  }
+
+  if (targetLen <= 14) {
+    return {
+      charBox: 'w-4.5 sm:w-5.5 h-6.5 sm:h-7.5',
+      charHeight: 'h-6.5 sm:h-7.5',
+      charFont: 'text-xs sm:text-sm font-semibold',
+      containerGap: 'gap-0.5 sm:gap-0.5',
+      getBlankWidth: (bLen: number) => {
+        if (bLen === 1) return 'w-4.5 sm:w-5.5';
+        if (bLen === 2) return 'w-[38px] sm:w-[46px]';
+        if (bLen === 3) return 'w-[58px] sm:w-[70px]';
+        return 'w-[78px] sm:w-[94px]';
+      },
+    };
+  }
+
+  return {
+    charBox: 'w-4 sm:w-4.5 h-5.5 sm:h-6.5',
+    charHeight: 'h-5.5 sm:h-6.5',
+    charFont: 'text-[10px] sm:text-xs font-semibold',
+    containerGap: 'gap-0.5',
+    getBlankWidth: (bLen: number) => {
+      if (bLen === 1) return 'w-4 sm:w-4.5';
+      if (bLen === 2) return 'w-[34px] sm:w-[38px]';
+      if (bLen === 3) return 'w-[52px] sm:w-[58px]';
+      return 'w-[70px] sm:w-[78px]';
+    },
+  };
 }
 
 /**
@@ -169,6 +248,11 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   const blankLines = poem.lines
     .map((line, index) => ({ line, lineIndex: index }))
     .filter((item) => item.line.blank_index !== null);
+
+  // 动态全诗最长单行字数（用于整体和谐自适应）
+  const poemMaxLen = useMemo(() => {
+    return Math.max(...poem.lines.map((l) => l.text.length), 5);
+  }, [poem.lines]);
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -486,15 +570,15 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
         <div className="flex-1 grid grid-cols-12 gap-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-theme-border/60">
           
           {/* ----------------------------------------------------------------- */}
-          {/* 左卷 (5列)：诗屏吟诵、填词推敲、名篇整篇默写与宗师批改圈错 */}
+          {/* 左卷 (6列)：诗屏吟诵、填词推敲、名篇整篇默写与宗师批改圈错 */}
           {/* ----------------------------------------------------------------- */}
           <div
-            className={`col-span-12 lg:col-span-5 flex flex-col justify-between p-4 sm:p-6 bg-theme-canvas overflow-y-auto no-scrollbar ${
+            className={`col-span-12 lg:col-span-6 flex flex-col justify-between p-3 sm:p-5 bg-theme-canvas overflow-y-auto no-scrollbar ${
               mobileView === 'poem' ? 'flex' : 'hidden lg:flex'
             }`}
           >
             {/* 上部：宣纸绢本诗屏 */}
-            <div className="relative text-center px-4 py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-4">
+            <div className="relative text-center px-2 sm:px-4 py-3 sm:py-5 bg-theme-surface-card rounded-3xl border border-theme-border shadow-sm space-y-3 sm:space-y-4 overflow-hidden w-full">
               <div className="text-xs text-theme-text-muted font-poetry border-b border-dashed border-theme-border/60 pb-2">
                 {activeMode === 'preview' && '✦ 全篇精读 · 重点词条与译文赏析已全览展开 ✦'}
                 {activeMode === 'assembly' && '✦ 格律推敲 · 斟酌文心，右侧锦囊可在卡壳时参阅 ✦'}
@@ -506,21 +590,22 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 模式 1: 全篇精读模式 */}
               {activeMode === 'preview' && (
-                <div className="space-y-3 font-poetry py-2 flex flex-col items-center">
+                <div className="space-y-2.5 sm:space-y-3 font-poetry py-2 flex flex-col items-center w-full">
                   {poem.lines.map((line, idx) => {
                     const isVisible = idx < renderedLineCount;
                     const chars = Array.from(line.text);
+                    const scale = getLineScale(chars.length, poemMaxLen);
                     return (
                       <div
                         key={idx}
-                        className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
+                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 blur-[2px]'
                         }`}
                       >
                         {chars.map((char, cIdx) => (
                           <span
                             key={cIdx}
-                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                            className={`${scale.charBox} ${scale.charFont} flex items-center justify-center font-poetry text-theme-text font-bold select-none shrink-0`}
                           >
                             {char}
                           </span>
@@ -533,27 +618,28 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
               {/* 模式 2: 推敲填词模式 */}
               {activeMode === 'assembly' && (
-                <div className="space-y-3 font-poetry py-2 flex flex-col items-center">
+                <div className="space-y-2.5 sm:space-y-3 font-poetry py-2 flex flex-col items-center w-full">
                   {poem.lines.map((line, idx) => {
                     const isVisible = idx < renderedLineCount;
                     const stepIdxForLine = blankLines.findIndex((b) => b.lineIndex === idx);
                     const isPastQuestion = stepIdxForLine !== -1 && stepIdxForLine < currentStepIndex;
                     const isCurrentQuestion = stepIdxForLine !== -1 && stepIdxForLine === currentStepIndex;
+                    const chars = Array.from(line.text);
+                    const scale = getLineScale(chars.length, poemMaxLen);
 
                     // 无填空的行
                     if (line.blank_index === null) {
-                      const chars = Array.from(line.text);
                       return (
                         <div
                           key={idx}
-                          className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
+                          className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
                             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                           }`}
                         >
                           {chars.map((char, cIdx) => (
                             <span
                               key={cIdx}
-                              className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                              className={`${scale.charBox} ${scale.charFont} flex items-center justify-center font-poetry text-theme-text font-bold select-none shrink-0`}
                             >
                               {char}
                             </span>
@@ -566,15 +652,14 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     const bStart = line.blank_index;
                     const bLen = line.correct?.length || 1;
                     const bEnd = bStart + bLen;
-                    const chars = Array.from(line.text);
                     const beforeChars = chars.slice(0, bStart);
                     const afterChars = chars.slice(bEnd);
-                    const blankSlotWidth = getBlankSlotWidthClass(bLen);
+                    const blankSlotWidth = scale.getBlankWidth(bLen);
 
                     return (
                       <div
                         key={idx}
-                        className={`flex items-center justify-center gap-1 sm:gap-2 transition-all duration-700 ${
+                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                         }`}
                       >
@@ -582,7 +667,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                         {beforeChars.map((char, cIdx) => (
                           <span
                             key={cIdx}
-                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                            className={`${scale.charBox} ${scale.charFont} flex items-center justify-center font-poetry text-theme-text font-bold select-none shrink-0`}
                           >
                             {char}
                           </span>
@@ -590,16 +675,16 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
                         {/* 填空字模槽 */}
                         <div
-                          className={`${blankSlotWidth} h-10 sm:h-12 rounded-xl flex items-center justify-center font-poetry font-bold transition-all duration-300 select-none ${
+                          className={`${blankSlotWidth} ${scale.charHeight} rounded-xl flex items-center justify-center font-poetry font-bold transition-all duration-300 select-none shrink-0 ${scale.charFont} ${
                             isFinished || isPastQuestion
-                              ? 'border-2 border-theme-primary/40 bg-theme-primary-light text-theme-primary shadow-xs text-xl sm:text-2xl'
+                              ? 'border-2 border-theme-primary/40 bg-theme-primary-light text-theme-primary shadow-xs'
                               : isCurrentQuestion
                               ? isAnswerCorrect === true
-                                ? 'border-2 border-emerald-500 bg-emerald-50 text-emerald-800 scale-105 shadow-sm text-xl sm:text-2xl'
+                                ? 'border-2 border-emerald-500 bg-emerald-50 text-emerald-800 scale-105 shadow-sm'
                                 : isAnswerCorrect === false
-                                ? 'border-2 border-red-500 bg-red-50 text-red-600 text-xl sm:text-2xl animate-shake'
-                                : 'border-2 border-theme-gold bg-theme-gold/15 text-theme-gold shadow-gold-glow animate-pulse text-lg sm:text-xl font-serif'
-                              : 'border-2 border-dashed border-theme-border/70 bg-theme-surface/50 text-theme-text-muted/40 font-serif text-sm'
+                                ? 'border-2 border-red-500 bg-red-50 text-red-600 animate-shake'
+                                : 'border-2 border-theme-gold bg-theme-gold/15 text-theme-gold shadow-gold-glow animate-pulse font-serif'
+                              : 'border-2 border-dashed border-theme-border/70 bg-theme-surface/50 text-theme-text-muted/40 font-serif'
                           }`}
                         >
                           {isFinished || isPastQuestion
@@ -615,7 +700,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                         {afterChars.map((char, cIdx) => (
                           <span
                             key={cIdx + bEnd}
-                            className="w-8 sm:w-10 h-10 sm:h-12 flex items-center justify-center font-poetry text-xl sm:text-2xl text-theme-text font-bold select-none"
+                            className={`${scale.charBox} ${scale.charFont} flex items-center justify-center font-poetry text-theme-text font-bold select-none shrink-0`}
                           >
                             {char}
                           </span>
@@ -1039,7 +1124,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
           {/* 结合模式进行遮瑕防剧透，避免变成直接提示默写答案！ */}
           {/* ----------------------------------------------------------------- */}
           <div
-            className={`col-span-12 lg:col-span-7 flex flex-col p-4 sm:p-6 bg-theme-surface overflow-hidden ${
+            className={`col-span-12 lg:col-span-6 flex flex-col p-4 sm:p-6 bg-theme-surface overflow-hidden ${
               mobileView === 'analysis' ? 'flex' : 'hidden lg:flex'
             }`}
           >
