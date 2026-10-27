@@ -6,6 +6,7 @@ export interface PoemLine {
   correct: string | null;
   options: string[] | null;   // 4 个选项 (A, B, C, D)
   wrong_explanations: Record<string, string> | null; // 错误选项的深度文学赏析
+  correct_explanation?: string; // 正确选项的炼字深意与文学赏析
 }
 
 export interface KeyWordAnnotation {

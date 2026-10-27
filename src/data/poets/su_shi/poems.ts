@@ -21,6 +21,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '莫听',
         options: ['莫听', '休听', '不闻', '且听'],
+        correct_explanation: '“莫听”起笔斩钉截铁，直抒宠辱不惊、不为外界风雨所动的从容与旷达。',
         wrong_explanations: {
           休听: '“休听”语气偏向柔婉劝诫，不如“莫听”斩钉截铁、坦荡旷达。',
           不闻: '“不闻”强作塞耳不闻之态，落入刻意，不如“莫听”任凭风雨之超然。',
@@ -32,6 +33,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '吟啸',
         options: ['吟啸', '高歌', '漫步', '独步'],
+        correct_explanation: '“吟啸”兼具诗人的清雅与隐者的超脱，在暴雨骤风中自得其乐，尽显任真自得之风骨。',
         wrong_explanations: {
           高歌: '“高歌”过于亢奋外露，失却苏轼雨中竹杖芒鞋、闲庭信步的超脱神韵。',
           漫步: '“漫步”缺乏长啸破空的精神张力。',
@@ -57,6 +59,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '烟雨',
         options: ['烟雨', '风雨', '沧浪', '江海'],
+        correct_explanation: '“烟雨”将自然风雨与人生浮沉化为江南水墨诗境，一蓑平生，旷达至极。',
         wrong_explanations: {
           风雨: '“风雨”稍显直露粗砺，不若“烟雨”将自然风雨与人生风浪融为江南水墨之化境。',
           沧浪: '“沧浪”多涉避世隐逸，东坡身处江湖却从未自弃。',
@@ -103,6 +106,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '也无风雨也无晴',
         options: ['也无风雨也无晴', '休管风雨休管晴', '任凭风雨任凭晴', '不辞风雨不辞晴'],
+        correct_explanation: '“也无风雨也无晴”乃全词画龙点睛之笔，道出超越顺逆荣辱、心如明镜、物我两忘的最高人生境界。',
         wrong_explanations: {
           休管风雨休管晴: '流于市井口吻，失去千古名句超凡入圣的人生大哲思境界。',
           任凭风雨任凭晴: '仍有对抗风雨的执念，未到“也无风雨也无晴”的心如明镜、物我两忘。',
@@ -177,6 +181,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '明月',
         options: ['明月', '皓月', '金波', '玉兔'],
+        correct_explanation: '“明月”对天发问，承接李太白《把酒问月》之气象，直探宇宙本源，澄澈空灵，气魄恢宏。',
         wrong_explanations: {
           皓月: '虽状月白，不如“明月”天然清澈，直承李太白“青天有月来几时”之问。',
           金波: '借代过繁，失去了中秋月圆纯净清冽的诗境。',
@@ -209,6 +214,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '乘风',
         options: ['乘风', '凌空', '驾云', '逐月'],
+        correct_explanation: '“乘风”浪漫超拔，写出欲羽化登仙、神游八极之道骨仙风，深契庄子御风之超脱。',
         wrong_explanations: {
           凌空: '“凌空”偏重动作姿态，不及“乘风”羽化登仙之道骨仙风。',
           驾云: '偏向神魔小说写实手法，失去诗性空灵感。',
@@ -248,6 +254,7 @@ export const SU_SHI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '但愿',
         options: ['但愿', '唯愿', '只求', '安得'],
+        correct_explanation: '“但愿”寄托了对天下离人最温厚真挚的祝祷，展现东坡由超然物外复归关切人间的博大情怀。',
         wrong_explanations: {
           唯愿: '“唯愿”口吻稍生硬，不如“但愿”温柔包容、情意绵长。',
           只求: '“只求”格局偏小，缺少博大的人间情怀。',

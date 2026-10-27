@@ -20,6 +20,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 4,
         correct: '生',
         options: ['生', '起', '飘', '吐'],
+        correct_explanation: '“生”字极妙，化静态山峰为动态生机，日光照射水汽蒸腾如造化自生之妙，动静相生，神韵超然。',
         wrong_explanations: {
           起: '“起”字突兀骤现，香炉峰在晴日照耀下应是岚气蒸腾、温和化育之态。',
           飘: '“飘”字轻盈无力，无法展现瀑布香炉水汽凝聚为紫色祥云的雄浑感。',
@@ -45,6 +46,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '银河',
         options: ['银河', '白练', '玉龙', '云雾'],
+        correct_explanation: '“银河”将人间飞瀑直升为九天星汉倾泻，唯有太白吞吐宇宙的绝顶浪漫与雄浑仙气，方能写出此神来之笔。',
         wrong_explanations: {
           白练: '“白练”过于写实平俗，李白此句乃神来之笔，非星汉从九天垂落不足以状其奇绝。',
           玉龙: '“玉龙”多为战阵或冰雪俗套比喻，缺了李太白超拔宇宙的浪漫仙气。',
@@ -118,6 +120,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '明月',
         options: ['明月', '冷月', '皎月', '落月'],
+        correct_explanation: '“明月”清水出芙蓉，天然去雕饰，极写秋夜月色朗照之清绝，质朴直击人心，全无文人雕琢之气。',
         wrong_explanations: {
           冷月: '“冷月”词意显露太尽，缺少了皎洁月色直透床前的清澈与宁静。',
           皎月: '“皎月”文人造作感过重，不若“明月”口语天然，清水出芙蓉。',
@@ -143,6 +146,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 2,
         correct: '思',
         options: ['思', '忆', '念', '想'],
+        correct_explanation: '“思”字低头良久、思绪绵长回甘，温厚含蓄而寄托深广，道尽游子无尽乡愁。',
         wrong_explanations: {
           忆: '“忆”重在向后追溯过往人事，“思”则是心绪无边漫卷，深沉博大。',
           念: '“念”字稍显急促，不如“思”字低头良久的绵长回甘。',
@@ -210,6 +214,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '故人',
         options: ['故人', '良朋', '夫子', '知交'],
+        correct_explanation: '“故人”承载相交有年的至深情谊，平实质朴却深厚动人，奠定全诗依依惜别的深情基调。',
         wrong_explanations: {
           良朋: '虽言朋友，但“良朋”略显书卷客套，少了一份相交有年的平实深厚。',
           夫子: '虽李白称孟浩然“吾爱孟夫子”，但起首七字“故人西辞”更具送别苍茫之概。',
@@ -221,6 +226,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '烟花',
         options: ['烟花', '风光', '春风', '柳烟'],
+        correct_explanation: '“烟花”极写江南三月柳絮如烟、繁花似锦的明媚胜景，将惜别之意融于灿烂春光中，意境空灵高远。',
         wrong_explanations: {
           风光: '风光空洞泛指，绝无“烟花三月”柳絮如烟、繁花似锦的江南盛景之妙。',
           春风: '春风三月平平无奇，失却李白名句传诵千载的诗意绝美色彩。',
@@ -239,6 +245,7 @@ export const LI_BAI_POEMS: PoemData[] = [
         blank_index: 0,
         correct: '唯见',
         options: ['唯见', '空余', '但看', '独留'],
+        correct_explanation: '“唯见”写出极目凝望、帆影已逝而唯见江水奔流的天地苍茫，寄无限离情于浩浩东去之长江。',
         wrong_explanations: {
           空余: '“空余”过于强调凄凉落寞，李白为好友奔赴繁华扬州壮行，情虽依依，意仍开阔。',
           但看: '“但看”语调轻浮，不及“唯见”极目远眺天地苍茫之凝定。',

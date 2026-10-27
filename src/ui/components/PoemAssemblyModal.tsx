@@ -131,6 +131,16 @@ function getBlankSlotWidthClass(len: number): string {
   return 'w-8 sm:w-10';
 }
 
+/**
+ * 根据选项字符长度动态适配字号，避免字体过大突兀
+ */
+function getOptionFontSizeClass(text: string): string {
+  if (text.length >= 6) return 'text-xs sm:text-sm';
+  if (text.length >= 3) return 'text-sm sm:text-base';
+  if (text.length === 2) return 'text-base sm:text-lg';
+  return 'text-lg sm:text-xl';
+}
+
 export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   poem,
   onComplete,
@@ -165,6 +175,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [errorCount, setErrorCount] = useState<number>(0);
   const [wrongExplanation, setWrongExplanation] = useState<string | null>(null);
+  const [correctExplanation, setCorrectExplanation] = useState<string | null>(null);
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [finalScore, setFinalScore] = useState<number>(100);
 
@@ -199,11 +210,13 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
     setRevealedKeywords({});
     setDictationInputs(new Array(poem.lines.length).fill(''));
     setIsDictationSubmitted(false);
+    setWrongExplanation(null);
+    setCorrectExplanation(null);
   }, [poem.id, activeMode]);
 
   // 推敲选项选择
   const handleOptionSelect = (option: string) => {
-    if (!currentLine || isFinished) return;
+    if (!currentLine || isFinished || isAnswerCorrect === true) return;
     setSelectedWord(option);
     const correct = currentLine.correct;
 
@@ -211,17 +224,15 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
       setIsAnswerCorrect(true);
       setWrongExplanation(null);
 
-      setTimeout(() => {
-        if (currentStepIndex + 1 < blankLines.length) {
-          setCurrentStepIndex((prev) => prev + 1);
-          setSelectedWord(null);
-          setIsAnswerCorrect(null);
-        } else {
-          finishAssembly();
-        }
-      }, 700);
+      // 获取选用正字的文学解析深意
+      const explanation =
+        currentLine.correct_explanation ||
+        poem.key_words.find((kw) => kw.word.includes(correct) || correct.includes(kw.word))?.explanation ||
+        `“${correct}”字切中诗心，神完气足，极尽自然造化之妙。`;
+      setCorrectExplanation(explanation);
     } else {
       setIsAnswerCorrect(false);
+      setCorrectExplanation(null);
       const newErrors = errorCount + 1;
       setErrorCount(newErrors);
       if (newErrors === 1) setFinalScore(75);
@@ -234,15 +245,29 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
     }
   };
 
-  // 跳过填空
-  const handleSkip = () => {
-    if (!currentLine) return;
-    setFinalScore(50);
+  // 进入下一句推敲或完成挑战
+  const handleProceedNextStep = () => {
+    setCorrectExplanation(null);
+    setWrongExplanation(null);
     if (currentStepIndex + 1 < blankLines.length) {
       setCurrentStepIndex((prev) => prev + 1);
       setSelectedWord(null);
       setIsAnswerCorrect(null);
-      setWrongExplanation(null);
+    } else {
+      finishAssembly();
+    }
+  };
+
+  // 跳过填空
+  const handleSkip = () => {
+    if (!currentLine) return;
+    setFinalScore(50);
+    setCorrectExplanation(null);
+    setWrongExplanation(null);
+    if (currentStepIndex + 1 < blankLines.length) {
+      setCurrentStepIndex((prev) => prev + 1);
+      setSelectedWord(null);
+      setIsAnswerCorrect(null);
     } else {
       finishAssembly();
     }
@@ -809,19 +834,20 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                       return (
                         <button
                           key={opt}
+                          disabled={isAnswerCorrect === true}
                           onClick={() => handleOptionSelect(opt)}
-                          className={`group relative p-3 sm:p-4 rounded-2xl border-2 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-xs ${
+                          className={`group relative py-2.5 px-3.5 sm:py-3 sm:px-4 rounded-xl sm:rounded-2xl border-2 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-xs ${
                             isThisSelected && isAnswerCorrect === true
                               ? 'bg-emerald-600 border-emerald-600 text-white shadow-jade-glow scale-[1.02]'
                               : isThisSelected && isAnswerCorrect === false
                               ? 'bg-red-50 border-red-400 text-red-700'
                               : 'bg-theme-surface-card hover:bg-theme-surface border-theme-border hover:border-theme-primary/70 hover:shadow-card-soft hover:-translate-y-0.5'
-                          }`}
+                          } ${isAnswerCorrect === true && !isThisSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <div className="flex items-center justify-between w-full">
                             {/* 左侧选项序号 */}
                             <span
-                              className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold text-xs border transition-colors ${
+                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center font-mono font-bold text-[11px] border transition-colors ${
                                 isThisSelected && isAnswerCorrect === true
                                   ? 'bg-emerald-500/40 text-white border-emerald-300/60'
                                   : 'bg-theme-surface border-theme-border text-theme-text-muted group-hover:text-theme-primary group-hover:border-theme-primary/40'
@@ -830,9 +856,9 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                               {label}
                             </span>
 
-                            {/* 中间核心字词 */}
+                            {/* 中间核心字词 (动态字号，克制大方) */}
                             <span
-                              className={`text-2xl sm:text-3xl font-poetry font-bold tracking-widest transition-transform group-hover:scale-105 ${
+                              className={`${getOptionFontSizeClass(opt)} font-poetry font-bold tracking-wider transition-transform group-hover:scale-105 ${
                                 isThisSelected && isAnswerCorrect === true
                                   ? 'text-white'
                                   : isThisSelected && isAnswerCorrect === false
@@ -844,13 +870,13 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                             </span>
 
                             {/* 右侧反馈微标 */}
-                            <div className="w-6 flex items-center justify-end">
+                            <div className="w-5 sm:w-6 flex items-center justify-end">
                               {isThisSelected && isAnswerCorrect === true ? (
-                                <CheckCircle2 className="w-5 h-5 text-white animate-in zoom-in" />
+                                <CheckCircle2 className="w-4 h-4 text-white animate-in zoom-in" />
                               ) : isThisSelected && isAnswerCorrect === false ? (
-                                <AlertCircle className="w-5 h-5 text-red-600 animate-in zoom-in" />
+                                <AlertCircle className="w-4 h-4 text-red-600 animate-in zoom-in" />
                               ) : (
-                                <span className="text-[11px] font-poetry opacity-0 group-hover:opacity-100 transition-opacity text-theme-primary font-bold">
+                                <span className="text-[10px] font-poetry opacity-0 group-hover:opacity-100 transition-opacity text-theme-primary font-bold">
                                   选
                                 </span>
                               )}
@@ -860,6 +886,40 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                       );
                     })}
                   </div>
+
+                  {/* 选对即时炼字赏析卡片 */}
+                  {correctExplanation && isAnswerCorrect === true && (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2.5 animate-in fade-in text-xs text-emerald-950 shadow-xs">
+                      <div className="flex items-start space-x-2">
+                        <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <div className="font-bold text-emerald-800 font-poetry flex items-center space-x-1.5">
+                            <span>✦ 妙笔天成 · 炼字正解：</span>
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-200/60 text-emerald-800 text-[10px] font-mono font-bold">
+                              {selectedWord}
+                            </span>
+                          </div>
+                          <p className="leading-relaxed font-sans text-emerald-900 text-xs">
+                            {correctExplanation}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 前进按钮 */}
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          onClick={handleProceedNextStep}
+                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center space-x-1.5"
+                        >
+                          <span>
+                            {currentStepIndex + 1 < blankLines.length
+                              ? '领悟文心 · 推敲下一句 ➔'
+                              : '参透妙旨 · 载入典藏 ➔'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 选错即时解析指引抽屉 */}
                   {wrongExplanation && (
