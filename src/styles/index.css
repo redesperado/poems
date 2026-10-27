@@ -20,3 +20,20 @@ body {
 .font-poetry {
   font-family: var(--font-family-poetry);
 }
+
+/* Leaflet 瓦片切图暖绿青瓷滤镜 (Warm-Green Cartographic Tiles) */
+.warm-green-carto-tile {
+  filter: sepia(0.28) hue-rotate(42deg) saturate(1.18) brightness(0.97) contrast(1.02);
+}
+
+/* 消除 Leaflet 默认容器背景与点击蓝框 */
+.leaflet-container {
+  background-color: #EAF2E8 !important;
+  font-family: inherit !important;
+  outline: none !important;
+}
+
+.custom-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
