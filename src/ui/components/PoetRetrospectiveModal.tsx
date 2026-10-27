@@ -22,6 +22,7 @@ export interface PoetRetrospectiveModalProps {
   mood: MoodState;
   onOpenCollection: () => void;
   onRestartJourney: () => void;
+  onOpenPoetSwitch?: () => void;
   onClose: () => void;
 }
 
@@ -33,6 +34,7 @@ export const PoetRetrospectiveModal: React.FC<PoetRetrospectiveModalProps> = ({
   mood,
   onOpenCollection,
   onRestartJourney,
+  onOpenPoetSwitch,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<'epitaph' | 'appraisals' | 'legacy'>('epitaph');
@@ -298,8 +300,17 @@ export const PoetRetrospectiveModal: React.FC<PoetRetrospectiveModalProps> = ({
               className="px-4 py-2.5 rounded-full bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-300 font-poetry font-bold text-xs shadow-md transition-all active:scale-95 flex items-center space-x-1.5 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>再走诗仙路 · 重启长卷</span>
+              <span>重走{poet.title}路 · 重启长卷</span>
             </button>
+            {onOpenPoetSwitch && (
+              <button
+                onClick={onOpenPoetSwitch}
+                className="px-4 py-2.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 font-poetry font-bold text-xs shadow-md transition-all active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-300" />
+                <span>结识其他千古文宗 ➔</span>
+              </button>
+            )}
           </div>
 
           <button

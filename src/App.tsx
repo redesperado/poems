@@ -9,12 +9,16 @@ import { CollectionModal } from './ui/components/CollectionModal';
 import { LifeChoiceModal } from './ui/components/LifeChoiceModal';
 import { CrisisModal } from './ui/components/CrisisModal';
 import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
+import { PoetSwitchModal } from './ui/components/PoetSwitchModal';
+import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
     currentPoet,
+    currentPoetId,
+    switchPoet,
     currentDynasty,
     currentTheme,
     switchTheme,
@@ -48,6 +52,7 @@ export const App: React.FC = () => {
   } = useGameStore();
 
   const [activeEventNotice, setActiveEventNotice] = useState<GameEvent | null>(null);
+  const [isPoetSwitchOpen, setIsPoetSwitchOpen] = useState<boolean>(false);
 
   // 快捷触发当前地点的诗词创作
   const handleTriggerCurrentLocationPoem = () => {
@@ -105,6 +110,7 @@ export const App: React.FC = () => {
         unlockedCount={unlockedPoemIds.length}
         totalCount={activePack.poems.length}
         onOpenCollection={() => setIsCollectionOpen(true)}
+        onOpenPoetSwitch={() => setIsPoetSwitchOpen(true)}
       />
 
       {/* 2. 主场景：地图游历与右侧悬浮 5 维情绪仪表 */}
@@ -360,7 +366,24 @@ export const App: React.FC = () => {
             setActiveRetrospective(null);
             resetPoetJourney();
           }}
+          onOpenPoetSwitch={() => {
+            setActiveRetrospective(null);
+            setIsPoetSwitchOpen(true);
+          }}
           onClose={() => setActiveRetrospective(null)}
+        />
+      )}
+
+      {/* 10. 历代千古文宗 · 诗词长卷切换弹窗 (Poet Switch) */}
+      {isPoetSwitchOpen && (
+        <PoetSwitchModal
+          currentPoetId={currentPoetId}
+          availablePoets={AVAILABLE_POETS}
+          onSelectPoet={(poetId) => {
+            switchPoet(poetId);
+            setIsPoetSwitchOpen(false);
+          }}
+          onClose={() => setIsPoetSwitchOpen(false)}
         />
       )}
     </div>

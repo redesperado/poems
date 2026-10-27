@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PoetData } from '../../types/poet';
 import { LocationData } from '../../types/location';
-import { Palette, BookOpen, Compass, ChevronDown, Check } from 'lucide-react';
+import { Palette, BookOpen, Compass, ChevronDown, Check, Sparkles } from 'lucide-react';
 
 interface HeaderNavProps {
   poet: PoetData;
@@ -13,6 +13,7 @@ interface HeaderNavProps {
   unlockedCount: number;
   totalCount: number;
   onOpenCollection: () => void;
+  onOpenPoetSwitch?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -25,6 +26,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   unlockedCount,
   totalCount,
   onOpenCollection,
+  onOpenPoetSwitch,
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -72,10 +74,14 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     <header className="w-full px-4 py-3 bg-theme-surface/85 backdrop-blur-md border-b border-theme-border flex items-center justify-between shadow-card-soft transition-colors duration-300 z-30">
       {/* 左侧：诗人状态（海棠形头像）与年份地点 */}
       <div className="flex items-center space-x-3">
-        {/* 唐代海棠形头像底座 */}
-        <div className="relative group">
-          <div className="w-12 h-12 bg-gradient-to-br from-spring-emerald via-spring-celadon to-spring-gold p-[2px] shape-begonia flex items-center justify-center shadow-jade-glow">
-            <div className="w-full h-full bg-theme-surface-card shape-begonia flex items-center justify-center text-theme-primary font-bold text-base font-poetry">
+        {/* 唐代海棠形头像底座 (支持点击打开文人长卷) */}
+        <div
+          onClick={onOpenPoetSwitch}
+          className="relative group cursor-pointer transition-transform active:scale-95"
+          title="点击打开历代文人长卷"
+        >
+          <div className="w-12 h-12 bg-gradient-to-br from-spring-emerald via-spring-celadon to-spring-gold p-[2px] shape-begonia flex items-center justify-center shadow-jade-glow group-hover:shadow-gold-glow">
+            <div className="w-full h-full bg-theme-surface-card shape-begonia flex items-center justify-center text-theme-primary font-bold text-base font-poetry group-hover:text-theme-gold transition-colors">
               {poet.name_cn.slice(-2)}
             </div>
           </div>
@@ -114,8 +120,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         </div>
       </div>
 
-      {/* 右侧：主题切换器、典藏阁入口 */}
-      <div className="flex items-center space-x-2 sm:space-x-3">
+      {/* 右侧：文人长卷入口、主题切换器、典藏阁入口 */}
+      <div className="flex items-center space-x-2 sm:space-x-2.5">
+        {/* 文人长卷切换入口 */}
+        <button
+          onClick={onOpenPoetSwitch}
+          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-full border border-theme-border bg-theme-surface-card hover:border-theme-border-highlight text-theme-text text-xs transition-all active:scale-95 cursor-pointer font-poetry shadow-2xs"
+          title="切换体验其他唐宋文宗"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-theme-gold" />
+          <span className="font-medium">文人</span>
+        </button>
+
         {/* 主题换肤下拉切换 (点击常驻展开，彻底消除 Hover 间隙抖动) */}
         <div ref={themeMenuRef} className="relative">
           <button
