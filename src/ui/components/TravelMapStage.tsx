@@ -41,6 +41,18 @@ interface TravelMapStageProps {
   currentYear?: number;
 }
 
+// 宏观国家视野（Zoom < 5.8）仅优先呈现的核心都会与帝京 (一级城市)
+const PRIMARY_CITY_IDS = [
+  'chang_an',
+  'luoyang',
+  'bianjing',
+  'linan',
+  'guangling',
+  'chengdu',
+  'jinling',
+  'youzhou',
+];
+
 // =========================================================================
 // 真实地理水系与古代陆路经纬度坐标集 (转换为 Leaflet [lat, lng])
 // =========================================================================
@@ -143,8 +155,12 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
-  // 地图底图样式模式: 'warm-silk' (青绿暖绢金字塔瓦片) | 'warm-carto' (实景舆图暖玉瓦片)
-  const [basemapStyle, setBasemapStyle] = useState<'warm-silk' | 'warm-carto'>('warm-silk');
+  // 地图底图样式模式:
+  // 'relief' (真实山川地貌切片) | 'satellite' (真实遥感影像切片) | 'silk' (青绿绢本金字塔切片) | 'carto' (工笔水墨舆图切片)
+  const [basemapStyle, setBasemapStyle] = useState<'relief' | 'satellite' | 'silk' | 'carto'>('relief');
+
+  // 当前实时缩放级别 (驱动 LOD 按需渐进呈现)
+  const [zoomLevel, setZoomLevel] = useState<number>(5.5);
 
   // 疆域与水系图层显示状态
   const [showTerritory, setShowTerritory] = useState<boolean>(true);
@@ -163,10 +179,13 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     age: number;
   } | null>(null);
 
-  // 玩家角色 Leaflet Marker 与图层引用
+  // 玩家角色 Leaflet Marker 与图层分组引用
   const playerMarkerRef = useRef<L.Marker | null>(null);
-  const poetMarkersMapRef = useRef<Record<string, L.Marker>>({});
-  const baseTileLayerRef = useRef<L.Layer | null>(null);
+  const tileLayerRef = useRef<L.Layer | null>(null);
+  const waterTerritoryGroupRef = useRef<L.LayerGroup | null>(null);
+  const riversRoadsGroupRef = useRef<L.LayerGroup | null>(null);
+  const citiesGroupRef = useRef<L.LayerGroup | null>(null);
+  const poetsGroupRef = useRef<L.LayerGroup | null>(null);
 
   // 当前年份 (优先采用全局游戏年份，若无则使用代表性高光年份)
   const currentYear = useMemo(() => {
@@ -214,15 +233,34 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     }
   }, [getCityLatLng]);
 
+  // 生成主角棋子 DivIcon
+  const createPlayerIcon = useCallback((d: 'tang' | 'song') => {
+    return L.divIcon({
+      className: 'custom-div-icon pointer-events-none z-30',
+      html: `
+        <div class="relative flex flex-col items-center select-none">
+          <div class="absolute -inset-3.5 rounded-full bg-amber-500/35 animate-ping"></div>
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white flex items-center justify-center font-poetry font-bold text-xs shadow-2xl border-2 border-amber-200 ring-2 ring-amber-600/50">
+            ${d === 'tang' ? '太白' : '东坡'}
+          </div>
+          <div class="mt-1 px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold font-poetry whitespace-nowrap shadow-md flex items-center space-x-1 border border-amber-300">
+            <span>当前驻足</span>
+          </div>
+        </div>
+      `,
+      iconSize: [80, 55],
+      iconAnchor: [40, 20],
+    });
+  }, []);
+
   // =========================================================================
-  // Leaflet 核心地图生命周期与江河湖泊、疆域版图全面渲染
+  // 1. Leaflet 核心地图容器与图层组初始化 (仅执行一次，避免缩放时销毁重绘视口)
   // =========================================================================
   useEffect(() => {
     const container = mapContainerRef.current;
     if (!container) return;
 
-    // 1. 初始化 Leaflet Map 实例 (中心位于中原荆楚核心，适度微仰角缩放)
-    const initialCenter: [number, number] = [32.8, 112.5];
+    const initialCenter: [number, number] = [33.2, 112.5];
     const map = L.map(container, {
       center: initialCenter,
       zoom: 5.5,
@@ -230,124 +268,228 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       maxZoom: 9.5,
       zoomSnap: 0.5,
       zoomDelta: 0.5,
-      zoomControl: false, // 使用自定义美化控件
+      zoomControl: false,
       attributionControl: false,
     });
     mapInstanceRef.current = map;
 
-    // 2. 自定义【青绿暖绢金字塔瓦片切图层】(Warm-Green Silk Tile Layer - 偏绿色暖色)
-    // 采用 L.GridLayer 动态切片渲染 256x256 高精度画布，零网络依赖、离线秒开、无白屏
-    const WarmGreenSilkTileLayer = L.GridLayer.extend({
-      createTile: function (coords: { x: number; y: number; z: number }) {
-        const tile = document.createElement('canvas');
-        tile.width = 256;
-        tile.height = 256;
-        const ctx = tile.getContext('2d');
-        if (!ctx) return tile;
+    // 创建独立图层组，各司其职，互不影响
+    const waterTerritoryGroup = L.layerGroup().addTo(map);
+    const riversRoadsGroup = L.layerGroup().addTo(map);
+    const citiesGroup = L.layerGroup().addTo(map);
+    const poetsGroup = L.layerGroup().addTo(map);
 
-        // 根据瓦片坐标计算大致经纬度 (用于局部山海微调)
-        const n = Math.pow(2, coords.z);
-        const lon = (coords.x / n) * 360 - 180;
-        const latRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * coords.y) / n)));
-        const lat = (latRad * 180) / Math.PI;
+    waterTerritoryGroupRef.current = waterTerritoryGroup;
+    riversRoadsGroupRef.current = riversRoadsGroup;
+    citiesGroupRef.current = citiesGroup;
+    poetsGroupRef.current = poetsGroup;
 
-        // A. 绘制青绿暖色丝绢渐变底色 (晨露新绿 + 暖玉宣纸金)
-        const grad = ctx.createLinearGradient(0, 0, 256, 256);
-        grad.addColorStop(0, '#EEF6ED'); // 晨露微冷翠
-        grad.addColorStop(0.5, '#E5F1E2'); // 柔润青瓷玉
-        grad.addColorStop(1, '#DBEBD9'); // 暖润青绿草木
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 256, 256);
+    // 初始化主角标记
+    const initialPlayerLatLng = getCityLatLng(currentLocation.id);
+    const playerMarker = L.marker(initialPlayerLatLng, {
+      icon: createPlayerIcon(dynasty),
+      zIndexOffset: 1000,
+    }).addTo(map);
+    playerMarkerRef.current = playerMarker;
 
-        // B. 绘制古代绢本横竖微经纬织纹
-        ctx.strokeStyle = 'rgba(4, 120, 87, 0.04)';
-        ctx.lineWidth = 1;
-        for (let i = 32; i < 256; i += 32) {
-          ctx.beginPath();
-          ctx.moveTo(0, i);
-          ctx.lineTo(256, i);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(i, 0);
-          ctx.lineTo(i, 256);
-          ctx.stroke();
-        }
-
-        // C. 海域与沿海滩涂意象 (经度 > 121 或东南沿海)
-        if (lon > 120.5 || (lat < 30.5 && lon > 119.0)) {
-          // 沧海柔波深青
-          ctx.fillStyle = 'rgba(15, 118, 110, 0.07)';
-          ctx.fillRect(0, 0, 256, 256);
-
-          // 细腻水波细纹
-          ctx.strokeStyle = 'rgba(13, 148, 136, 0.16)';
-          ctx.lineWidth = 1;
-          for (let y = 25; y < 256; y += 45) {
-            ctx.beginPath();
-            ctx.moveTo(15, y);
-            ctx.bezierCurveTo(75, y - 5, 135, y + 5, 195, y);
-            ctx.stroke();
-          }
-        }
-
-        // D. 西部高原与山峦青黛微晕 (经度 < 106)
-        if (lon < 106.0 && lat > 26.0) {
-          ctx.fillStyle = 'rgba(5, 150, 105, 0.05)';
-          ctx.fillRect(0, 0, 256, 256);
-        }
-
-        return tile;
-      },
+    // 监听实时缩放变化，无缝驱动 LOD 视图
+    map.on('zoomend', () => {
+      setZoomLevel(map.getZoom());
     });
 
-    // 默认加载青绿暖绢切片层
-    const silkTileLayer = new (WarmGreenSilkTileLayer as any)({
-      tileSize: 256,
-      minZoom: 4,
-      maxZoom: 10,
-    });
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+      waterTerritoryGroupRef.current = null;
+      riversRoadsGroupRef.current = null;
+      citiesGroupRef.current = null;
+      poetsGroupRef.current = null;
+      playerMarkerRef.current = null;
+      tileLayerRef.current = null;
+    };
+  }, []); // 仅在 Mount 时执行一次
 
-    // 备用：带暖绿滤镜的高清实景舆图切片 (CartoDB Voyager 瓦片 + CSS暖绿滤镜)
-    const cartoTileLayer = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
-      {
-        subdomains: 'abcd',
-        className: 'warm-green-carto-tile',
-        opacity: 0.88,
-        minZoom: 4,
-        maxZoom: 10,
-      }
-    );
+  // =========================================================================
+  // 2. 真实地域金字塔瓦片切片动态切换 (无需重置地图视口)
+  // =========================================================================
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    if (basemapStyle === 'warm-silk') {
-      silkTileLayer.addTo(map);
-      baseTileLayerRef.current = silkTileLayer;
-    } else {
-      cartoTileLayer.addTo(map);
-      baseTileLayerRef.current = cartoTileLayer;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
     }
 
-    // =======================================================================
-    // 3. 【重点填充】东海沧海海域水面填充 (Ocean Water Polygon)
-    // =======================================================================
+    let newTileLayer: L.Layer;
+
+    if (basemapStyle === 'relief') {
+      // 真实华夏山川地貌切片 (Esri Shaded Relief - 展示真实青藏高原、秦岭、太行、巴蜀盆地立体山川地势)
+      newTileLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
+        {
+          className: 'warm-green-relief-tile',
+          opacity: 0.96,
+          minZoom: 4,
+          maxZoom: 10,
+        }
+      );
+    } else if (basemapStyle === 'satellite') {
+      // 真实高精卫星遥感影像切片 (Esri World Imagery - 真实航拍山水大地)
+      newTileLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          className: 'warm-green-satellite-tile',
+          opacity: 0.88,
+          minZoom: 4,
+          maxZoom: 10,
+        }
+      );
+    } else if (basemapStyle === 'silk') {
+      // 青绿绢本金字塔切片 (Custom 256x256 L.GridLayer - 宣纸纤维与工笔格纹，离线秒开)
+      const WarmGreenSilkTileLayer = L.GridLayer.extend({
+        createTile: function (coords: { x: number; y: number; z: number }) {
+          const tile = document.createElement('canvas');
+          tile.width = 256;
+          tile.height = 256;
+          const ctx = tile.getContext('2d');
+          if (!ctx) return tile;
+
+          const seed = (coords.x * 37 + coords.y * 17 + coords.z * 13) % 100;
+          const lightness = 91 + (seed % 4);
+          ctx.fillStyle = `hsl(110, 22%, ${lightness}%)`;
+          ctx.fillRect(0, 0, 256, 256);
+
+          ctx.strokeStyle = 'rgba(13, 148, 136, 0.05)';
+          ctx.lineWidth = 0.5;
+          for (let i = 32; i < 256; i += 64) {
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(256, i);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i, 256);
+            ctx.stroke();
+          }
+
+          const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 130);
+          grad.addColorStop(0, 'rgba(16, 185, 129, 0.04)');
+          grad.addColorStop(1, 'rgba(5, 150, 105, 0.0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 256, 256);
+
+          return tile;
+        },
+      });
+      // @ts-expect-error GridLayer constructor instantiation
+      newTileLayer = new WarmGreenSilkTileLayer({ minZoom: 4, maxZoom: 10 });
+    } else {
+      // 实景工笔水墨舆图切片 (CartoDB Voyager)
+      newTileLayer = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+        {
+          subdomains: 'abcd',
+          className: 'warm-green-carto-tile',
+          opacity: 0.92,
+          minZoom: 4,
+          maxZoom: 10,
+        }
+      );
+    }
+
+    newTileLayer.addTo(map);
+    if ('bringToBack' in newTileLayer && typeof (newTileLayer as L.TileLayer).bringToBack === 'function') {
+      (newTileLayer as L.TileLayer).bringToBack();
+    }
+    tileLayerRef.current = newTileLayer;
+  }, [basemapStyle]);
+
+  // =========================================================================
+  // 3. LOD 按需渐进呈现图层更新 (随缩放、朝代、开关动态清空重构，不闪烁不重置)
+  // =========================================================================
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const waterTerritoryGroup = waterTerritoryGroupRef.current;
+    const riversRoadsGroup = riversRoadsGroupRef.current;
+    const citiesGroup = citiesGroupRef.current;
+    const poetsGroup = poetsGroupRef.current;
+
+    if (!map || !waterTerritoryGroup || !riversRoadsGroup || !citiesGroup || !poetsGroup) {
+      return;
+    }
+
+    // 清空现有矢量图层
+    waterTerritoryGroup.clearLayers();
+    riversRoadsGroup.clearLayers();
+    citiesGroup.clearLayers();
+    poetsGroup.clearLayers();
+
+    // -----------------------------------------------------------------------
+    // A. 沧海与湖泊水系填充
+    // -----------------------------------------------------------------------
     if (showWaterbodies) {
+      // 1. 东海沧海海域水面填充 (Ocean Water Polygon)
       const oceanPoly = L.polygon(OCEAN_WATER_POLYGON, {
         fillColor: '#80C2B4',
-        fillOpacity: 0.35,
+        fillOpacity: 0.32,
         color: '#0D9488',
         weight: 1.5,
         dashArray: '6, 6',
         stroke: true,
-      }).addTo(map);
+      });
       oceanPoly.bindTooltip('【沧海万里】东海浩瀚 · 碧波万顷接天流', {
         sticky: true,
         className: 'font-poetry text-xs text-emerald-950 bg-white/95 border border-emerald-600/40 shadow-sm',
       });
+      waterTerritoryGroup.addLayer(oceanPoly);
+
+      // 2. 六大名湖水体填充 (洞庭湖、鄱阳湖、太湖、洪泽湖、巢湖、青海湖)
+      MAJOR_LAKES.forEach((lake) => {
+        const lakePoly = L.polygon(lake.polygon, {
+          fillColor: '#38A89D',
+          fillOpacity: 0.62,
+          color: '#0F766E',
+          weight: 1.8,
+          opacity: 0.95,
+        });
+
+        lakePoly.bindTooltip(
+          `<div class="space-y-0.5"><div class="font-bold text-emerald-900 font-poetry">🌊 ${lake.name} (${lake.ancientName})</div><div class="text-[11px] text-slate-700 font-poetry">${lake.desc}</div></div>`,
+          {
+            sticky: true,
+            className: 'font-poetry text-xs text-emerald-950 bg-emerald-50/98 border border-emerald-600/60 shadow-md p-2',
+          }
+        );
+        waterTerritoryGroup.addLayer(lakePoly);
+
+        // 仅在放大至区域视图 (Zoom >= 5.8) 时，才显示湖泊中心铭牌徽标
+        if (zoomLevel >= 5.8) {
+          const latSum = lake.polygon.reduce((acc, p) => acc + p[0], 0);
+          const lngSum = lake.polygon.reduce((acc, p) => acc + p[1], 0);
+          const centerLat = latSum / lake.polygon.length;
+          const centerLng = lngSum / lake.polygon.length;
+
+          const lakeLabelIcon = L.divIcon({
+            className: 'custom-div-icon pointer-events-none',
+            html: `
+              <div class="px-2 py-0.5 rounded-full bg-white/95 text-emerald-950 font-poetry font-bold text-[10px] whitespace-nowrap shadow-sm border border-emerald-600/40 backdrop-blur-sm flex items-center space-x-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>
+                <span>${lake.name}</span>
+              </div>
+            `,
+            iconSize: [60, 20],
+            iconAnchor: [30, 10],
+          });
+          waterTerritoryGroup.addLayer(
+            L.marker([centerLat, centerLng], { icon: lakeLabelIcon, interactive: false })
+          );
+        }
+      });
     }
 
-    // =======================================================================
-    // 4. 【重点填充】王朝帝国大一统疆域轮廓 (Imperial Territory Boundary)
-    // =======================================================================
+    // -----------------------------------------------------------------------
+    // B. 王朝帝国大一统疆域与宏观行政分界
+    // -----------------------------------------------------------------------
     if (showTerritory) {
       const imperialBorder = dynasty === 'tang' ? TANG_EMPIRE_BORDER : SONG_EMPIRE_BORDER;
       const dynastyTitle = dynasty === 'tang' ? '大唐天朝版图' : '大宋正朔版图';
@@ -358,12 +500,12 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
 
       const territoryLayer = L.polygon(imperialBorder, {
         fillColor: '#DCF0DE',
-        fillOpacity: 0.18,
-        color: '#9A3412', // 古代朱砂暗红疆界线
-        weight: 2.8,
+        fillOpacity: 0.12,
+        color: '#9A3412', // 历代朱砂暗金疆界
+        weight: 2.5,
         dashArray: '8, 6',
         opacity: 0.85,
-      }).addTo(map);
+      });
 
       territoryLayer.bindTooltip(
         `<div class="space-y-0.5"><div class="font-bold text-amber-900 font-poetry">🏛️ ${dynastyTitle}</div><div class="text-xs text-slate-800">${dynastyDesc}</div></div>`,
@@ -372,179 +514,154 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
           className: 'font-poetry text-xs text-amber-950 bg-amber-50/98 border border-amber-400/80 shadow-md p-2',
         }
       );
+      waterTerritoryGroup.addLayer(territoryLayer);
 
-      // 唐代十道 / 两宋路制宏观行政大区分界线 (古金细虚线)
-      REGIONAL_DIVISIONS.forEach((div) => {
-        const divLine = L.polyline(div.path, {
-          color: '#854D0E',
-          weight: 1.6,
-          dashArray: '5, 5',
-          opacity: 0.45,
-        }).addTo(map);
-        divLine.bindTooltip(`【${div.name}】历史行政区划要冲`, {
-          sticky: true,
-          className: 'font-poetry text-[10px] text-amber-900 bg-white/90 border border-amber-300',
-        });
-      });
-    }
-
-    // =======================================================================
-    // 5. 【重点填充】全国各大名湖水体填充 (Major Lakes Surface Polygons)
-    // =======================================================================
-    if (showWaterbodies) {
-      MAJOR_LAKES.forEach((lake) => {
-        const lakePoly = L.polygon(lake.polygon, {
-          fillColor: '#38A89D',
-          fillOpacity: 0.65,
-          color: '#0F766E',
-          weight: 1.8,
-          opacity: 0.95,
-        }).addTo(map);
-
-        lakePoly.bindTooltip(
-          `<div class="space-y-0.5"><div class="font-bold text-emerald-900 font-poetry">🌊 ${lake.name} (${lake.ancientName})</div><div class="text-[11px] text-slate-700 font-poetry">${lake.desc}</div></div>`,
-          {
+      // 唐代十道 / 两宋路制宏观行政大区分界线 (在中高缩放呈现)
+      if (zoomLevel >= 5.8) {
+        REGIONAL_DIVISIONS.forEach((div) => {
+          const divLine = L.polyline(div.path, {
+            color: '#854D0E',
+            weight: 1.5,
+            dashArray: '5, 5',
+            opacity: 0.45,
+          });
+          divLine.bindTooltip(`【${div.name}】历史大区分界要冲`, {
             sticky: true,
-            className: 'font-poetry text-xs text-emerald-950 bg-emerald-50/98 border border-emerald-600/60 shadow-md p-2',
-          }
-        );
-
-        // 计算湖泊多边形几何中心放置典雅发光水体铭牌
-        const latSum = lake.polygon.reduce((acc, p) => acc + p[0], 0);
-        const lngSum = lake.polygon.reduce((acc, p) => acc + p[1], 0);
-        const centerLat = latSum / lake.polygon.length;
-        const centerLng = lngSum / lake.polygon.length;
-
-        const lakeLabelIcon = L.divIcon({
-          className: 'custom-div-icon pointer-events-none',
-          html: `
-            <div class="px-2 py-0.5 rounded-full bg-white/95 text-emerald-950 font-poetry font-bold text-[10px] whitespace-nowrap shadow-sm border border-emerald-600/40 backdrop-blur-sm flex items-center space-x-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>
-              <span>${lake.name}</span>
-            </div>
-          `,
-          iconSize: [60, 20],
-          iconAnchor: [30, 10],
+            className: 'font-poetry text-[10px] text-amber-900 bg-white/90 border border-amber-300',
+          });
+          waterTerritoryGroup.addLayer(divLine);
         });
-        L.marker([centerLat, centerLng], { icon: lakeLabelIcon, interactive: false }).addTo(map);
-      });
+      }
     }
 
-    // =======================================================================
-    // 6. 真实大江大河全水系网 (干流 + 十大关键支流)
-    // =======================================================================
-    // A. 黄河之水天上来 (双层暖金泥金色波光)
-    L.polyline(YELLOW_RIVER_LAT_LNG, {
+    // -----------------------------------------------------------------------
+    // C. 真实大江大河干流、大运河与支流水网
+    // -----------------------------------------------------------------------
+    // 1. 九曲黄河 (泥金色波光)
+    const yellowGlow = L.polyline(YELLOW_RIVER_LAT_LNG, {
       color: '#F59E0B',
+      weight: 7,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+    const yellowLine = L.polyline(YELLOW_RIVER_LAT_LNG, {
+      color: '#B45309',
+      weight: 4.5,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+    yellowLine.bindTooltip('【九曲黄河】万里沙 · 黄河之水天上来，奔流到海不复回', {
+      sticky: true,
+      className: 'font-poetry text-xs text-amber-950 bg-amber-50/95 border border-amber-500/50',
+    });
+    riversRoadsGroup.addLayer(yellowGlow);
+    riversRoadsGroup.addLayer(yellowLine);
+
+    // 2. 万里长江 (翡翠碧玉流光)
+    const yangtzeGlow = L.polyline(YANGTZE_RIVER_LAT_LNG, {
+      color: '#10B981',
       weight: 8,
       opacity: 0.35,
       lineCap: 'round',
       lineJoin: 'round',
-    }).addTo(map);
-    const yellowRiverLine = L.polyline(YELLOW_RIVER_LAT_LNG, {
-      color: '#B45309',
-      weight: 5.0,
-      opacity: 0.95,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(map);
-    yellowRiverLine.bindTooltip('【九曲黄河】万里沙 · 黄河之水天上来，奔流到海不复回', {
-      sticky: true,
-      className: 'font-poetry text-xs text-amber-950 bg-amber-50/95 border border-amber-500/50',
     });
-
-    // B. 万里长江浩荡东去 (双层翡翠碧玉流光)
-    L.polyline(YANGTZE_RIVER_LAT_LNG, {
-      color: '#10B981',
-      weight: 9,
-      opacity: 0.35,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(map);
-    const yangtzeRiverLine = L.polyline(YANGTZE_RIVER_LAT_LNG, {
+    const yangtzeLine = L.polyline(YANGTZE_RIVER_LAT_LNG, {
       color: '#0D9488',
-      weight: 6.0,
+      weight: 5.5,
       opacity: 0.95,
       lineCap: 'round',
       lineJoin: 'round',
-    }).addTo(map);
-    yangtzeRiverLine.bindTooltip('【万里长江】孤帆远影碧空尽，唯见长江天际流 · 华夏黄金水道', {
+    });
+    yangtzeLine.bindTooltip('【万里长江】孤帆远影碧空尽，唯见长江天际流 · 华夏黄金水道', {
       sticky: true,
       className: 'font-poetry text-xs text-emerald-950 bg-emerald-50/95 border border-emerald-600/50',
     });
+    riversRoadsGroup.addLayer(yangtzeGlow);
+    riversRoadsGroup.addLayer(yangtzeLine);
 
-    // C. 隋唐宋京杭大运河 (青翠虚线水驿)
+    // 3. 隋唐两宋大运河 (青翠虚线水驿)
     const canalLine = L.polyline(GRAND_CANAL_LAT_LNG, {
       color: '#059669',
-      weight: 3.5,
+      weight: 3.2,
       dashArray: '6, 6',
       opacity: 0.9,
       lineCap: 'round',
-    }).addTo(map);
+    });
     canalLine.bindTooltip('【京杭大运河】尽道隋亡为此河，至今千里赖通波 · 汴河通济渠与江南水驿', {
       sticky: true,
       className: 'font-poetry text-xs text-emerald-950 bg-white/95 border border-emerald-500/40',
     });
+    riversRoadsGroup.addLayer(canalLine);
 
-    // D. 长江黄河十大支流水网 (渭河、汉水、嘉陵江、岷江、汾河、淮水、湘江、赣江、珠江、钱塘江)
+    // 4. 十大核心支流水网 (按需呈现：低缩放轻描淡写，放大至 Zoom >= 6.5 时加重并显示注记)
     if (showWaterbodies) {
       RIVER_NETWORKS.forEach((river) => {
-        // 支流柔光底层
-        L.polyline(river.path, {
+        const isZoomedIn = zoomLevel >= 6.5;
+
+        const subGlow = L.polyline(river.path, {
           color: '#10B981',
-          weight: river.weight + 2.5,
-          opacity: 0.28,
+          weight: isZoomedIn ? river.weight + 2 : 2.0,
+          opacity: isZoomedIn ? 0.3 : 0.15,
           lineCap: 'round',
           lineJoin: 'round',
-        }).addTo(map);
-
-        // 支流水脉主体
-        const riverLine = L.polyline(river.path, {
-          color: river.id.includes('wei') ? '#B45309' : '#0D9488',
-          weight: river.weight,
-          opacity: 0.9,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(map);
-
-        riverLine.bindTooltip(`【${river.name}】${river.desc}`, {
-          sticky: true,
-          className: 'font-poetry text-xs text-slate-900 bg-white/95 border border-emerald-600/40',
         });
+        const subLine = L.polyline(river.path, {
+          color: river.id.includes('wei') ? '#B45309' : '#0D9488',
+          weight: isZoomedIn ? river.weight : 1.8,
+          opacity: isZoomedIn ? 0.92 : 0.6,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+
+        if (isZoomedIn) {
+          subLine.bindTooltip(`【${river.name}】${river.desc}`, {
+            sticky: true,
+            className: 'font-poetry text-xs text-slate-900 bg-white/95 border border-emerald-600/40',
+          });
+        }
+        riversRoadsGroup.addLayer(subGlow);
+        riversRoadsGroup.addLayer(subLine);
       });
     }
 
-    // =======================================================================
-    // 7. 绘制古代官道陆路驿路线网 (连接十六大名城，角色行历通道)
-    // =======================================================================
+    // 5. 古代官道陆路驿路线网 (连接十六大名城)
     ANCIENT_ROADS.forEach(([c1, c2]) => {
       const p1 = getCityLatLng(c1);
       const p2 = getCityLatLng(c2);
-      L.polyline([p1, p2], {
+      const roadLine = L.polyline([p1, p2], {
         color: '#B45309',
         weight: 1.8,
         dashArray: '6, 6',
         opacity: 0.45,
-      }).addTo(map);
-    });
-
-    // 8. 标注名山胜迹 (工笔山岳图腾印记)
-    MOUNTAIN_LANDMARKS.forEach((mtn) => {
-      const mtnIcon = L.divIcon({
-        className: 'custom-div-icon pointer-events-none',
-        html: `
-          <div class="flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-900/10 text-emerald-950 font-poetry font-bold text-[10px] whitespace-nowrap shadow-sm border border-emerald-800/20 backdrop-blur-sm">
-            <span class="text-emerald-800">▲</span>
-            <span>${mtn.name}</span>
-          </div>
-        `,
-        iconSize: [80, 24],
-        iconAnchor: [40, 12],
       });
-      L.marker(mtn.pos, { icon: mtnIcon, interactive: false }).addTo(map);
+      riversRoadsGroup.addLayer(roadLine);
     });
 
-    // 9. 渲染全域十六大名城印鉴与楼阁徽标
+    // 6. 名山胜迹工笔图腾 (仅在 Zoom >= 5.8 显现)
+    if (zoomLevel >= 5.8) {
+      MOUNTAIN_LANDMARKS.forEach((mtn) => {
+        const mtnIcon = L.divIcon({
+          className: 'custom-div-icon pointer-events-none',
+          html: `
+            <div class="flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-900/10 text-emerald-950 font-poetry font-bold text-[10px] whitespace-nowrap shadow-sm border border-emerald-800/20 backdrop-blur-sm">
+              <span class="text-emerald-800">▲</span>
+              <span>${mtn.name}</span>
+            </div>
+          `,
+          iconSize: [80, 24],
+          iconAnchor: [40, 12],
+        });
+        riversRoadsGroup.addLayer(
+          L.marker(mtn.pos, { icon: mtnIcon, interactive: false })
+        );
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // D. 名城印鉴与 LOD 智能分级
+    // -----------------------------------------------------------------------
     Object.values(MAJOR_CITIES).forEach((city) => {
       const latLng: [number, number] = [city.coordinates[1], city.coordinates[0]];
       const isCurrent =
@@ -553,12 +670,15 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       const dynastyData = dynasty === 'tang' ? city.tang : city.song;
       const dynastyName = dynastyData.name || city.name_cn;
 
-      // 统计当期在此城池的同行文人
+      const isPrimary = PRIMARY_CITY_IDS.includes(city.id);
+      const shouldShowFullName = isCurrent || isPrimary || zoomLevel >= 5.8;
+
       const poetsHere = otherPoets.filter((p) => p.currentCityId === city.id);
 
-      const cityIcon = L.divIcon({
-        className: 'custom-div-icon cursor-pointer',
-        html: `
+      let iconHtml = '';
+
+      if (shouldShowFullName) {
+        iconHtml = `
           <div class="group relative flex flex-col items-center select-none ${
             isCurrent ? 'scale-110 z-30' : 'hover:scale-105 z-20'
           }">
@@ -591,99 +711,109 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
                 : ''
             }
           </div>
-        `,
-        iconSize: [90, 60],
-        iconAnchor: [45, 20],
+        `;
+      } else {
+        iconHtml = `
+          <div class="group relative flex flex-col items-center select-none cursor-pointer p-2">
+            <div class="w-3.5 h-3.5 rounded-full bg-emerald-800 border-2 border-white shadow-md hover:scale-150 hover:bg-emerald-600 transition-all"></div>
+            <div class="hidden group-hover:block absolute bottom-full mb-1 text-[10px] px-2 py-0.5 rounded bg-slate-900/95 text-white font-poetry whitespace-nowrap shadow-lg">
+              ${dynastyName}
+            </div>
+          </div>
+        `;
+      }
+
+      const cityIcon = L.divIcon({
+        className: 'custom-div-icon cursor-pointer',
+        html: iconHtml,
+        iconSize: shouldShowFullName ? [90, 60] : [24, 24],
+        iconAnchor: shouldShowFullName ? [45, 20] : [12, 12],
       });
 
-      const marker = L.marker(latLng, { icon: cityIcon }).addTo(map);
+      const marker = L.marker(latLng, { icon: cityIcon });
       marker.on('click', () => {
         setActiveCityDetail(city);
       });
+      citiesGroup.addLayer(marker);
     });
 
-    // 10. 渲染同时代其他文人自主行历棋子
-    otherPoets.forEach(({ poet, currentCityId, status, recentWork, age, isAlive }) => {
-      if (!isAlive) return;
-      const cityLatLng = getCityLatLng(currentCityId);
+    // -----------------------------------------------------------------------
+    // E. 同时代文人自主行历棋子 (Zoom >= 5.8 显现独立棋子，低缩放归并在城池小徽标)
+    // -----------------------------------------------------------------------
+    if (zoomLevel >= 5.8) {
+      otherPoets.forEach(({ poet, currentCityId, status, recentWork, age, isAlive }) => {
+        if (!isAlive) return;
+        const cityLatLng = getCityLatLng(currentCityId);
 
-      // 为避免同城重叠，施加微小的经纬度微扰 (约 0.18 度)
-      const offsetSeed = poet.id.charCodeAt(0) % 5;
-      const offsetLat = (offsetSeed % 2 === 0 ? 0.16 : -0.16);
-      const offsetLng = (offsetSeed - 2) * 0.18 + 0.12;
-      const poetPos: [number, number] = [cityLatLng[0] + offsetLat, cityLatLng[1] + offsetLng];
+        const offsetSeed = poet.id.charCodeAt(0) % 5;
+        const offsetLat = offsetSeed % 2 === 0 ? 0.16 : -0.16;
+        const offsetLng = (offsetSeed - 2) * 0.18 + 0.12;
+        const poetPos: [number, number] = [cityLatLng[0] + offsetLat, cityLatLng[1] + offsetLng];
 
-      const poetIcon = L.divIcon({
-        className: 'custom-div-icon cursor-pointer',
-        html: `
-          <div class="group relative flex flex-col items-center select-none transition-transform hover:scale-125 z-25">
-            <div style="background-color: ${poet.color};" class="w-7 h-7 rounded-full text-white font-bold text-[10px] font-poetry flex items-center justify-center shadow-lg border-2 border-white ring-1 ring-slate-300">
-              ${poet.avatarText}
+        const poetIcon = L.divIcon({
+          className: 'custom-div-icon cursor-pointer',
+          html: `
+            <div class="group relative flex flex-col items-center select-none transition-transform hover:scale-125 z-25">
+              <div style="background-color: ${poet.color};" class="w-7 h-7 rounded-full text-white font-bold text-[10px] font-poetry flex items-center justify-center shadow-lg border-2 border-white ring-1 ring-slate-300">
+                ${poet.avatarText}
+              </div>
+              <span class="mt-0.5 px-1.5 py-0.2 rounded bg-slate-900/90 text-white text-[9px] font-poetry whitespace-nowrap shadow opacity-85 group-hover:opacity-100">
+                ${poet.name}
+              </span>
             </div>
-            <span class="mt-0.5 px-1.5 py-0.2 rounded bg-slate-900/90 text-white text-[9px] font-poetry whitespace-nowrap shadow opacity-85 group-hover:opacity-100">
-              ${poet.name}
-            </span>
-          </div>
-        `,
-        iconSize: [60, 45],
-        iconAnchor: [30, 15],
-      });
-
-      const poetMarker = L.marker(poetPos, { icon: poetIcon }).addTo(map);
-      poetMarker.on('click', () => {
-        setSelectedPoetDossier({
-          poet,
-          cityId: currentCityId,
-          cityName: MAJOR_CITIES[currentCityId]?.name_cn || currentCityId,
-          status,
-          recentWork,
-          age,
+          `,
+          iconSize: [60, 45],
+          iconAnchor: [30, 15],
         });
+
+        const poetMarker = L.marker(poetPos, { icon: poetIcon });
+        poetMarker.on('click', () => {
+          setSelectedPoetDossier({
+            poet,
+            cityId: currentCityId,
+            cityName: MAJOR_CITIES[currentCityId]?.name_cn || currentCityId,
+            status,
+            recentWork,
+            age,
+          });
+        });
+        poetsGroup.addLayer(poetMarker);
       });
-      poetMarkersMapRef.current[poet.id] = poetMarker;
-    });
-
-    // 11. 渲染主角 (李白/苏轼) 当前所处行历棋子
-    const initialPlayerLatLng = getCityLatLng(currentLocation.id);
-    const playerIcon = L.divIcon({
-      className: 'custom-div-icon pointer-events-none z-30',
-      html: `
-        <div class="relative flex flex-col items-center select-none">
-          <div class="absolute -inset-3.5 rounded-full bg-amber-500/35 animate-ping"></div>
-          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white flex items-center justify-center font-poetry font-bold text-xs shadow-2xl border-2 border-amber-200 ring-2 ring-amber-600/50">
-            ${dynasty === 'tang' ? '太白' : '东坡'}
-          </div>
-          <div class="mt-1 px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold font-poetry whitespace-nowrap shadow-md flex items-center space-x-1 border border-amber-300">
-            <span>当前驻足</span>
-          </div>
-        </div>
-      `,
-      iconSize: [80, 55],
-      iconAnchor: [40, 20],
-    });
-
-    const playerMarker = L.marker(initialPlayerLatLng, { icon: playerIcon }).addTo(map);
-    playerMarkerRef.current = playerMarker;
-
-    return () => {
-      map.remove();
-      mapInstanceRef.current = null;
-    };
+    }
   }, [
-    basemapStyle,
     dynasty,
-    currentLocation.id,
-    getCityLatLng,
-    otherPoets,
+    zoomLevel,
     showTerritory,
     showWaterbodies,
+    otherPoets,
+    currentLocation.id,
+    getCityLatLng,
   ]);
 
-  // 当当前所处地点变化时，执行平滑行历移动动画
+  // =========================================================================
+  // 4. 朝代切换时更新主角标记样式
+  // =========================================================================
+  useEffect(() => {
+    if (playerMarkerRef.current) {
+      playerMarkerRef.current.setIcon(createPlayerIcon(dynasty));
+    }
+  }, [dynasty, createPlayerIcon]);
+
+  // =========================================================================
+  // 5. 游历地点变化时：主角平滑策马行历动画 (1.2s 缓动行路)
+  // =========================================================================
   useEffect(() => {
     if (!playerMarkerRef.current || !mapInstanceRef.current) return;
     const destLatLng = getCityLatLng(currentLocation.id);
     const startLatLng = playerMarkerRef.current.getLatLng();
+
+    // 若经纬度基本相同，则无需播放移动动画
+    if (
+      Math.abs(startLatLng.lat - destLatLng[0]) < 0.001 &&
+      Math.abs(startLatLng.lng - destLatLng[1]) < 0.001
+    ) {
+      return;
+    }
 
     const startTime = performance.now();
     const duration = 1200; // 1.2 秒策马行路
@@ -717,12 +847,30 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
   const handleZoomOut = () => mapInstanceRef.current?.zoomOut();
   const handleResetView = () => {
-    mapInstanceRef.current?.flyTo([32.8, 112.5], 5.5, { duration: 1.0 });
+    mapInstanceRef.current?.flyTo([33.2, 112.5], 5.5, { duration: 1.0 });
   };
 
-  // 切换底图样式
-  const toggleBasemapStyle = () => {
-    setBasemapStyle((prev) => (prev === 'warm-silk' ? 'warm-carto' : 'warm-silk'));
+  // 轮换底图切片样式
+  const cycleBasemapStyle = () => {
+    setBasemapStyle((prev) => {
+      if (prev === 'relief') return 'satellite';
+      if (prev === 'satellite') return 'silk';
+      if (prev === 'silk') return 'carto';
+      return 'relief';
+    });
+  };
+
+  const getBasemapLabel = () => {
+    switch (basemapStyle) {
+      case 'relief':
+        return '⛰️ 华夏山川切片 (真实地形)';
+      case 'satellite':
+        return '🛰️ 真实遥感影像 (卫星切片)';
+      case 'silk':
+        return '📜 青绿绢本切片 (工笔宣纸)';
+      case 'carto':
+        return '🗺️ 水墨工笔舆图 (古典图籍)';
+    }
   };
 
   return (
@@ -735,16 +883,16 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
         onFocusCity={handleFocusCity}
       />
 
-      {/* 2. Leaflet 瓦片切图容器 (基于 256x256 金字塔瓦片架构) */}
+      {/* 2. Leaflet 瓦片切图容器 (基于真实地域图片金字塔切片架构) */}
       <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" />
 
       {/* 3. 悬浮地图交互控件 (右下角) */}
       <div className="absolute right-4 bottom-24 z-[1000] flex flex-col items-center bg-white/95 backdrop-blur-md border border-slate-300 rounded-2xl p-1.5 shadow-xl space-y-1.5">
-        {/* 底图样式切换 */}
+        {/* 底图样式切换 (真实山川 / 卫星影像 / 宣纸绢本 / 水墨舆图) */}
         <button
-          onClick={toggleBasemapStyle}
-          title={basemapStyle === 'warm-silk' ? '切换为：实景舆图瓦片' : '切换为：青绿暖绢切片'}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
+          onClick={cycleBasemapStyle}
+          title={`当前底图切片: ${getBasemapLabel()} (点击切换)`}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all relative group"
         >
           <Layers className="w-4 h-4 text-emerald-800" />
         </button>
@@ -779,14 +927,14 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
 
         <button
           onClick={handleZoomIn}
-          title="放大地图"
+          title="放大地图 (查看郡县与诗友)"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={handleZoomOut}
-          title="缩小地图"
+          title="缩小地图 (宏观全览)"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-800 hover:bg-slate-100 hover:text-emerald-800 active:scale-95 transition-all"
         >
           <ZoomOut className="w-4 h-4" />
@@ -803,11 +951,18 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
         </button>
       </div>
 
-      {/* 4. 探索指南与图例微标 (左下角) */}
+      {/* 4. 探索指南与当前缩放分级提示微标 (左下角) */}
       <div className="absolute left-4 bottom-24 z-[1000] hidden sm:flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-slate-300 px-4 py-2 rounded-full text-xs text-slate-800 shadow-md">
         <Compass className="w-4 h-4 text-emerald-800 shrink-0" />
         <span className="font-medium">
-          点击各大名湖/黄河长江/疆界可查阅典故 · 滚轮缩放 · 点击名城开启风土 · 点击文人探查同期行迹
+          {zoomLevel < 5.8
+            ? '宏观全览：仅显示核心帝都与驻地 · 放大可查看各郡县名胜、同期文人与江河支流'
+            : zoomLevel < 7.2
+            ? '大区经行：已呈现十六名城与同期文人行历 · 放大可查看各大支流细部'
+            : '郡县细览：已呈现全域水系网络与风物古迹'}
+        </span>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono font-bold">
+          {zoomLevel.toFixed(1)}x 视野
         </span>
       </div>
 

@@ -23,7 +23,17 @@ body {
 
 /* Leaflet 瓦片切图暖绿青瓷滤镜 (Warm-Green Cartographic Tiles) */
 .warm-green-carto-tile {
-  filter: sepia(0.28) hue-rotate(42deg) saturate(1.18) brightness(0.97) contrast(1.02);
+  filter: sepia(0.26) hue-rotate(42deg) saturate(1.18) brightness(0.98) contrast(1.02);
+}
+
+/* 真实山川地貌切片 (Shaded Relief Tiles) - 暖润青绿山水 */
+.warm-green-relief-tile {
+  filter: sepia(0.25) hue-rotate(36deg) saturate(1.28) brightness(1.03) contrast(1.06);
+}
+
+/* 真实卫星遥感影像切片 (Satellite Imagery Tiles) - 柔润青瓷调 */
+.warm-green-satellite-tile {
+  filter: sepia(0.2) hue-rotate(25deg) saturate(1.12) brightness(0.95);
 }
 
 /* 消除 Leaflet 默认容器背景与点击蓝框 */
