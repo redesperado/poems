@@ -18,9 +18,9 @@ export const LI_BAI: PoetData = {
     anger: 15,
     homesickness: 35,
   },
-  start_year: 726,
-  start_location_id: 'lu_shan',
-  start_event_id: 'li_bai_visit_lu_shan_726',
+  start_year: 701,
+  start_location_id: 'sichuan',
+  start_event_id: 'li_bai_youth_sichuan',
   theme_color: '#10B981',
   preferred_theme_id: 'spring',
 };

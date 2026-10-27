@@ -8,6 +8,15 @@ export type EventType =
   | 'crisis_response'
   | 'choice';
 
+export interface CrisisDetails {
+  title: string;
+  year: number;
+  historical_event_name: string;
+  historical_background: string;
+  poet_impact: string;
+  mood_delta_desc: string;
+}
+
 export interface GameEvent {
   id: string;
   poet_id: string;
@@ -19,6 +28,7 @@ export interface GameEvent {
   mood_delta?: Partial<MoodState>;
   triggers_choice_id?: string | null;
   triggers_poem_id?: string | null;
+  triggers_crisis?: CrisisDetails | null;
   next_event_id?: string | null;
 }
 

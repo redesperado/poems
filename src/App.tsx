@@ -9,7 +9,7 @@ import { CollectionModal } from './ui/components/CollectionModal';
 import { LifeChoiceModal } from './ui/components/LifeChoiceModal';
 import { CrisisModal } from './ui/components/CrisisModal';
 import { GameEvent } from './types/event';
-import { Sparkles, Compass, GitFork } from 'lucide-react';
+import { Sparkles, Compass, GitFork, Flame } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -22,6 +22,8 @@ export const App: React.FC = () => {
     mood,
     unlockedPoemIds,
     poemScores,
+    completedEventIds,
+    choicesMade,
     activePoemToAssemble,
     setActivePoemToAssemble,
     activeLifeChoice,
@@ -29,7 +31,9 @@ export const App: React.FC = () => {
     triggerLifeChoice,
     confirmLifeChoice,
     activeCrisis,
+    triggerCrisisForEvent,
     dismissCrisis,
+    completeEvent,
     isCollectionOpen,
     setIsCollectionOpen,
     travelToLocation,
@@ -50,9 +54,13 @@ export const App: React.FC = () => {
     }
   };
 
-  // 点击时间轴事件
-  const handleTimelineEventClick = (event: GameEvent) => {
-    if (event.triggers_choice_id) {
+  // 点击时间轴事件（不可跳过原则）
+  const handleTimelineEventClick = (event: GameEvent, isCurrent: boolean, isCompleted: boolean) => {
+    if (!isCurrent && !isCompleted) return;
+
+    if (event.triggers_crisis || event.type === 'crisis_response') {
+      triggerCrisisForEvent(event);
+    } else if (event.triggers_choice_id && !choicesMade[event.triggers_choice_id]) {
       triggerLifeChoice(event.triggers_choice_id);
     } else {
       setActiveEventNotice(event);
@@ -128,10 +136,11 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* 3. 底部历史时间轴托盘 (飞檐起翘流线) */}
+      {/* 3. 底部历史时间轴托盘 (严格依序历程，不可跳过，状态鲜明区分) */}
       <TimelineDock
         events={activePack.events}
         currentYear={currentYear}
+        completedEventIds={completedEventIds}
         unlockedPoemIds={unlockedPoemIds}
         onSelectEvent={handleTimelineEventClick}
       />
@@ -154,11 +163,14 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* 6. 时代洪流危机弹窗 (Historical Crisis) */}
+      {/* 6. 朝代大事节点危机弹窗 (Historical Dynastic Crisis，如安史之乱) */}
       {activeCrisis && (
         <CrisisModal
           year={activeCrisis.year}
           title={activeCrisis.title}
+          historicalEventName={activeCrisis.historicalEventName}
+          historicalBackground={activeCrisis.historicalBackground}
+          poetImpact={activeCrisis.poetImpact}
           description={activeCrisis.description}
           moodDeltaText={activeCrisis.moodDeltaText}
           onConfirm={dismissCrisis}
@@ -180,50 +192,132 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* 8. 时间轴事件简介提示 Drawer */}
+      {/* 8. 时间轴事件详情与交互弹窗 */}
       {activeEventNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm bg-theme-surface-card border border-theme-border rounded-2xl p-5 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between border-b border-theme-border/50 pb-2">
-              <span className="text-xs font-bold text-theme-primary font-poetry">
-                公元 {activeEventNotice.year} 年
-              </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-theme-surface-card border-2 border-theme-border rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-theme-border/50 pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs px-2.5 py-1 rounded-full bg-theme-primary/10 text-theme-primary font-mono font-bold">
+                  公元 {activeEventNotice.year} 年
+                </span>
+                {completedEventIds.includes(activeEventNotice.id) ? (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium">
+                    已经历 · 历史履痕
+                  </span>
+                ) : (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold animate-pulse">
+                    当下历程 · 亲历中
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setActiveEventNotice(null)}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none cursor-pointer w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/5"
               >
                 ×
               </button>
             </div>
-            <h3 className="font-bold text-base text-theme-text font-poetry">
-              {activeEventNotice.title}
-            </h3>
-            <p className="text-xs text-theme-text-muted leading-relaxed">
-              {activeEventNotice.description}
-            </p>
-            <div className="pt-2 flex justify-end space-x-2">
+
+            <div>
+              <h3 className="font-bold text-lg text-theme-text font-poetry flex items-center gap-2">
+                {(activeEventNotice.type === 'crisis_response' || activeEventNotice.triggers_crisis) && (
+                  <Flame className="w-5 h-5 text-red-500 shrink-0" />
+                )}
+                <span>{activeEventNotice.title}</span>
+              </h3>
+              <p className="text-xs sm:text-[13px] text-theme-text-muted leading-relaxed mt-2.5">
+                {activeEventNotice.description}
+              </p>
+            </div>
+
+            {/* 关联诗作提示 */}
+            {activeEventNotice.triggers_poem_id && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-300">
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="font-poetry font-bold">
+                    【关联经典诗篇】
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  {unlockedPoemIds.includes(activeEventNotice.triggers_poem_id) ? '已收录于典藏' : '待感悟创作'}
+                </span>
+              </div>
+            )}
+
+            {/* 操作按钮区 */}
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
+              {/* 如果是朝代危机 */}
+              {(activeEventNotice.type === 'crisis_response' || activeEventNotice.triggers_crisis) && (
+                <button
+                  onClick={() => {
+                    triggerCrisisForEvent(activeEventNotice);
+                    setActiveEventNotice(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>查看朝代大事件与影响</span>
+                </button>
+              )}
+
+              {/* 如果是人生抉择 */}
               {activeEventNotice.triggers_choice_id && (
                 <button
                   onClick={() => {
                     triggerLifeChoice(activeEventNotice.triggers_choice_id!);
                     setActiveEventNotice(null);
                   }}
-                  className="px-3.5 py-1.5 rounded-full bg-purple-600 text-white text-xs font-bold shadow-sm flex items-center space-x-1 hover:bg-purple-700"
+                  className="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md flex items-center space-x-1.5 cursor-pointer"
                 >
                   <GitFork className="w-3.5 h-3.5" />
-                  <span>抉择分水岭</span>
+                  <span>直面人生抉择</span>
                 </button>
               )}
-              <button
-                onClick={() => {
-                  travelToLocation(activeEventNotice.location_id);
-                  setActiveEventNotice(null);
-                }}
-                className="px-3.5 py-1.5 rounded-full bg-theme-primary text-white text-xs font-bold shadow-sm flex items-center space-x-1"
-              >
-                <Compass className="w-3.5 h-3.5" />
-                <span>前往该地</span>
-              </button>
+
+              {/* 如果有关联诗词 */}
+              {activeEventNotice.triggers_poem_id && (
+                <button
+                  onClick={() => {
+                    const poem = activePack.poems.find((p) => p.id === activeEventNotice.triggers_poem_id);
+                    if (poem) {
+                      setActivePoemToAssemble(poem);
+                      setActiveEventNotice(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{unlockedPoemIds.includes(activeEventNotice.triggers_poem_id) ? '重温诗作' : '感悟创作'}</span>
+                </button>
+              )}
+
+              {/* 亲历或前往 */}
+              {!completedEventIds.includes(activeEventNotice.id) ? (
+                <button
+                  onClick={() => {
+                    travelToLocation(activeEventNotice.location_id);
+                    completeEvent(activeEventNotice.id);
+                    setActiveEventNotice(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-theme-primary hover:bg-theme-accent text-white text-xs font-bold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>亲历此程，步入新程</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    travelToLocation(activeEventNotice.location_id);
+                    setActiveEventNotice(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-stone-700 hover:bg-stone-600 text-white text-xs font-medium flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>重访此地</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -8,8 +8,20 @@ import { LOCATIONS } from '../data/locations';
 import { POET_PACKS, PoetPack } from '../data/poets';
 import { loadGameSave, persistGameSave, PlayerSaveRecord } from '../engine/save/db';
 
+export interface ActiveCrisisState {
+  year: number;
+  title: string;
+  description: string;
+  historicalEventName?: string;
+  historicalBackground?: string;
+  poetImpact?: string;
+  moodDeltaText: string;
+  eventId?: string;
+}
+
 export interface GameStoreState {
   currentPoet: PoetData;
+  currentPoetId: string;
   currentDynasty: 'tang' | 'song';
   currentTheme: string;
   currentYear: number;
@@ -22,12 +34,7 @@ export interface GameStoreState {
   activePoemToAssemble: PoemData | null;
   activeEvent: GameEvent | null;
   activeLifeChoice: LifeChoice | null;
-  activeCrisis: {
-    year: number;
-    title: string;
-    description: string;
-    moodDeltaText: string;
-  } | null;
+  activeCrisis: ActiveCrisisState | null;
   isCollectionOpen: boolean;
   isLoading: boolean;
 }
@@ -39,8 +46,10 @@ export function useGameStore() {
 
   const [currentDynasty, setCurrentDynasty] = useState<'tang' | 'song'>('tang');
   const [currentTheme, setCurrentTheme] = useState<string>('spring');
-  const [currentYear, setCurrentYear] = useState<number>(726);
-  const [currentLocation, setCurrentLocation] = useState<LocationData>(LOCATIONS.lu_shan);
+  const [currentYear, setCurrentYear] = useState<number>(currentPoet.start_year || 701);
+  const [currentLocation, setCurrentLocation] = useState<LocationData>(
+    LOCATIONS[currentPoet.start_location_id] || LOCATIONS.sichuan
+  );
   const [mood, setMood] = useState<MoodState>(activePack.poet.initial_mood);
   const [unlockedPoemIds, setUnlockedPoemIds] = useState<string[]>([]);
   const [poemScores, setPoemScores] = useState<Record<string, number>>({});
@@ -50,12 +59,7 @@ export function useGameStore() {
   const [activePoemToAssemble, setActivePoemToAssemble] = useState<PoemData | null>(null);
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null);
   const [activeLifeChoice, setActiveLifeChoice] = useState<LifeChoice | null>(null);
-  const [activeCrisis, setActiveCrisis] = useState<{
-    year: number;
-    title: string;
-    description: string;
-    moodDeltaText: string;
-  } | null>(null);
+  const [activeCrisis, setActiveCrisis] = useState<ActiveCrisisState | null>(null);
 
   const [isCollectionOpen, setIsCollectionOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -67,8 +71,8 @@ export function useGameStore() {
         const save = await loadGameSave(
           currentPoet.id,
           currentPoet.initial_mood,
-          currentPoet.start_year,
-          currentPoet.start_location_id,
+          currentPoet.start_year || 701,
+          currentPoet.start_location_id || 'sichuan',
           currentPoet.preferred_theme_id || 'spring'
         );
         if (save) {
@@ -77,7 +81,7 @@ export function useGameStore() {
           setMood(save.mood);
           setUnlockedPoemIds(save.unlockedPoemIds);
           setPoemScores(save.poemScores);
-          setCompletedEventIds(save.completedEventIds);
+          setCompletedEventIds(save.completedEventIds || []);
           setChoicesMade(save.choicesMade || {});
           if (LOCATIONS[save.locationId]) {
             setCurrentLocation(LOCATIONS[save.locationId]);
@@ -104,11 +108,13 @@ export function useGameStore() {
     setCurrentTheme(themeToUse);
     document.documentElement.setAttribute('data-theme', themeToUse);
 
-    setCurrentYear(pack.poet.start_year);
+    const startYear = pack.poet.start_year || 701;
+    setCurrentYear(startYear);
     if (LOCATIONS[pack.poet.start_location_id]) {
       setCurrentLocation(LOCATIONS[pack.poet.start_location_id]);
     }
     setMood(pack.poet.initial_mood);
+    setCompletedEventIds([]);
     setActivePoemToAssemble(null);
     setActiveLifeChoice(null);
     setActiveCrisis(null);
@@ -169,13 +175,97 @@ export function useGameStore() {
     [activePack.poems, unlockedPoemIds]
   );
 
-  // 触发人生岔路
-  const triggerLifeChoice = useCallback((choiceId: string) => {
-    const choice = activePack.choices[choiceId];
-    if (choice) {
-      setActiveLifeChoice(choice);
+  // 触发朝代危机事件
+  const triggerCrisisForEvent = useCallback((event: GameEvent) => {
+    if (event.triggers_crisis) {
+      setActiveCrisis({
+        year: event.triggers_crisis.year,
+        title: event.triggers_crisis.title,
+        description: event.description,
+        historicalEventName: event.triggers_crisis.historical_event_name,
+        historicalBackground: event.triggers_crisis.historical_background,
+        poetImpact: event.triggers_crisis.poet_impact,
+        moodDeltaText: event.triggers_crisis.mood_delta_desc,
+        eventId: event.id,
+      });
+    } else {
+      setActiveCrisis({
+        year: event.year,
+        title: event.title,
+        description: event.description,
+        moodDeltaText: '山河震荡 · 时代剧变',
+        eventId: event.id,
+      });
     }
-  }, [activePack.choices]);
+  }, []);
+
+  // 顺序亲历并完成人生事件（不可跳过原则）
+  const completeEvent = useCallback(
+    (eventId: string) => {
+      setCompletedEventIds((prev) => {
+        if (prev.includes(eventId)) return prev;
+        const nextCompleted = [...prev, eventId];
+
+        // 寻找下一个事件
+        const currentIdx = activePack.events.findIndex((e) => e.id === eventId);
+        const nextEvent = activePack.events[currentIdx + 1];
+
+        let nextYear = currentYear;
+        let nextLoc = currentLocation;
+
+        if (nextEvent) {
+          nextYear = nextEvent.year;
+          setCurrentYear(nextEvent.year);
+          if (LOCATIONS[nextEvent.location_id]) {
+            nextLoc = LOCATIONS[nextEvent.location_id];
+            setCurrentLocation(nextLoc);
+          }
+          // 如果下一个事件是朝代大事（如安史之乱）
+          if (nextEvent.triggers_crisis) {
+            setActiveCrisis({
+              year: nextEvent.triggers_crisis.year,
+              title: nextEvent.triggers_crisis.title,
+              description: nextEvent.description,
+              historicalEventName: nextEvent.triggers_crisis.historical_event_name,
+              historicalBackground: nextEvent.triggers_crisis.historical_background,
+              poetImpact: nextEvent.triggers_crisis.poet_impact,
+              moodDeltaText: nextEvent.triggers_crisis.mood_delta_desc,
+              eventId: nextEvent.id,
+            });
+          }
+        }
+
+        // 持久化到 IndexedDB
+        persistGameSave({
+          id: `save_${currentPoet.id}`,
+          poetId: currentPoet.id,
+          year: nextYear,
+          locationId: nextLoc.id,
+          mood,
+          unlockedPoemIds,
+          poemScores,
+          completedEventIds: nextCompleted,
+          choicesMade,
+          currentTheme,
+          updatedAt: Date.now(),
+        });
+
+        return nextCompleted;
+      });
+    },
+    [activePack.events, currentPoet.id, currentYear, currentLocation, mood, unlockedPoemIds, poemScores, choicesMade, currentTheme]
+  );
+
+  // 触发人生岔路
+  const triggerLifeChoice = useCallback(
+    (choiceId: string) => {
+      const choice = activePack.choices[choiceId];
+      if (choice) {
+        setActiveLifeChoice(choice);
+      }
+    },
+    [activePack.choices]
+  );
 
   // 确认人生岔路选择
   const confirmLifeChoice = useCallback(
@@ -183,45 +273,41 @@ export function useGameStore() {
       setChoicesMade((prev) => ({ ...prev, [choiceId]: option.id }));
 
       // 应用心境变化
-      setMood((prev) => {
-        const nextMood = { ...prev };
-        Object.entries(option.mood_delta).forEach(([k, delta]) => {
-          const dim = k as keyof MoodState;
-          nextMood[dim] = Math.max(0, Math.min(100, (nextMood[dim] || 50) + (delta || 0)));
-        });
-        return nextMood;
+      const updatedMood = { ...mood };
+      Object.entries(option.mood_delta).forEach(([k, delta]) => {
+        const dim = k as keyof MoodState;
+        updatedMood[dim] = Math.max(0, Math.min(100, (updatedMood[dim] || 50) + (delta || 0)));
       });
+      setMood(updatedMood);
 
-      // 持久化
-      const saveRecord: PlayerSaveRecord = {
-        id: `save_${currentPoet.id}`,
-        poetId: currentPoet.id,
-        year: currentYear,
-        locationId: currentLocation.id,
-        mood,
-        unlockedPoemIds,
-        poemScores,
-        completedEventIds,
-        choicesMade: { ...choicesMade, [choiceId]: option.id },
-        currentTheme,
-        updatedAt: Date.now(),
-      };
-      persistGameSave(saveRecord);
+      // 自动完成对应事件
+      const choice = activePack.choices[choiceId];
+      if (choice && choice.event_id) {
+        completeEvent(choice.event_id);
+      }
     },
-    [currentPoet.id, currentYear, currentLocation.id, mood, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme]
+    [activePack.choices, completeEvent, mood]
   );
 
   // 时代洪流确认
   const dismissCrisis = useCallback(() => {
+    const crisisEventId = activeCrisis?.eventId;
     setActiveCrisis(null);
-    // 强制巨变情绪
-    setMood((prev) => ({
-      ...prev,
-      anger: Math.min(100, prev.anger + 35),
-      homesickness: Math.min(100, prev.homesickness + 40),
-      freedom: Math.max(0, prev.freedom - 20),
-    }));
-  }, []);
+
+    // 强制巨变情绪：安史之乱使人愤懑与羁旅暴涨，洒脱受制
+    const updatedMood = {
+      ...mood,
+      anger: Math.min(100, mood.anger + 35),
+      homesickness: Math.min(100, mood.homesickness + 40),
+      freedom: Math.max(0, mood.freedom - 25),
+    };
+    setMood(updatedMood);
+
+    // 若危机绑定了事件，将其标记为完成并推进至下一历程
+    if (crisisEventId) {
+      completeEvent(crisisEventId);
+    }
+  }, [activeCrisis, mood, completeEvent]);
 
   // 完成诗词拼组并解锁
   const completePoemAssembly = useCallback(
@@ -234,29 +320,66 @@ export function useGameStore() {
       setPoemScores((prev) => ({ ...prev, [poemId]: score }));
 
       // 增加灵感与豪情
-      setMood((prev) => ({
-        ...prev,
-        passion: Math.min(100, prev.passion + 10),
-        freedom: Math.min(100, prev.freedom + 10),
-      }));
+      const nextMood: MoodState = {
+        ...mood,
+        passion: Math.min(100, mood.passion + 10),
+        freedom: Math.min(100, mood.freedom + 10),
+      };
+      setMood(nextMood);
+
+      // 检查是否有与该诗关联的当前未完成事件，并顺畅推进历程
+      const matchedEvent = activePack.events.find(
+        (e) => e.triggers_poem_id === poemId
+      );
+
+      let nextCompleted = completedEventIds;
+      let nextYear = currentYear;
+      let nextLoc = currentLocation;
+
+      if (matchedEvent && !completedEventIds.includes(matchedEvent.id)) {
+        nextCompleted = [...completedEventIds, matchedEvent.id];
+        setCompletedEventIds(nextCompleted);
+
+        const currentIdx = activePack.events.findIndex((e) => e.id === matchedEvent.id);
+        const nextEvent = activePack.events[currentIdx + 1];
+        if (nextEvent) {
+          nextYear = nextEvent.year;
+          setCurrentYear(nextEvent.year);
+          if (LOCATIONS[nextEvent.location_id]) {
+            nextLoc = LOCATIONS[nextEvent.location_id];
+            setCurrentLocation(nextLoc);
+          }
+          if (nextEvent.triggers_crisis) {
+            setActiveCrisis({
+              year: nextEvent.triggers_crisis.year,
+              title: nextEvent.triggers_crisis.title,
+              description: nextEvent.description,
+              historicalEventName: nextEvent.triggers_crisis.historical_event_name,
+              historicalBackground: nextEvent.triggers_crisis.historical_background,
+              poetImpact: nextEvent.triggers_crisis.poet_impact,
+              moodDeltaText: nextEvent.triggers_crisis.mood_delta_desc,
+              eventId: nextEvent.id,
+            });
+          }
+        }
+      }
 
       // 持久化到 IndexedDB
-      const saveRecord: PlayerSaveRecord = {
+      persistGameSave({
         id: `save_${currentPoet.id}`,
         poetId: currentPoet.id,
-        year: currentYear,
-        locationId: currentLocation.id,
-        mood,
+        year: nextYear,
+        locationId: nextLoc.id,
+        mood: nextMood,
         unlockedPoemIds: nextUnlocked,
         poemScores: { ...poemScores, [poemId]: score },
-        completedEventIds,
+        completedEventIds: nextCompleted,
         choicesMade,
         currentTheme,
         updatedAt: Date.now(),
-      };
-      persistGameSave(saveRecord);
+      });
     },
-    [currentPoet.id, currentYear, currentLocation.id, mood, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme]
+    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme]
   );
 
   return {
@@ -286,7 +409,9 @@ export function useGameStore() {
     confirmLifeChoice,
     activeCrisis,
     setActiveCrisis,
+    triggerCrisisForEvent,
     dismissCrisis,
+    completeEvent,
     isCollectionOpen,
     setIsCollectionOpen,
     isLoading,
