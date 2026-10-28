@@ -234,6 +234,34 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   // 小屏视图切换 ('poem' | 'analysis')
   const [mobileView, setMobileView] = useState<'poem' | 'analysis'>('poem');
 
+  // 移动端横滑手势 (TODO-POL-03)
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    // 需满足：横向位移大于50px，且横向大于纵向1.5倍
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (deltaX < 0 && mobileView === 'poem') {
+        // 向左滑：展开右卷解析
+        setMobileView('analysis');
+      } else if (deltaX > 0 && mobileView === 'analysis') {
+        // 向右滑：切回左卷诗屏
+        setMobileView('poem');
+      }
+    }
+  };
+
   // 右侧解析筛选 ('all' | 'translation' | 'keywords' | 'appreciation' | 'journal')
   const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>('all');
 
@@ -413,6 +441,49 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
       finishAssembly();
     }
   };
+
+  // 键盘快捷键监听 (TODO-POL-04: 1/2/3/4选字、Enter推进、Space诵读、Esc关闭)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 正在默写输入文本时，不拦截按键
+      if (
+        activeMode === 'dictation' ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key === ' ' && !isFinished) {
+        e.preventDefault();
+        handleToggleReciting();
+        return;
+      }
+
+      if (activeMode === 'assembly' && !isFinished) {
+        if (isAnswerCorrect === true) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleProceedNextStep();
+          }
+        } else if (currentLine?.options) {
+          const num = parseInt(e.key, 10);
+          if (num >= 1 && num <= currentLine.options.length) {
+            e.preventDefault();
+            handleOptionSelect(currentLine.options[num - 1]);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeMode, isFinished, isAnswerCorrect, currentLine, isReciting, onClose]);
 
   const finishAssembly = () => {
     setIsFinished(true);
@@ -648,9 +719,13 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
         </header>
 
         {/* =================================================================== */}
-        {/* 2. 双联展卷主体区域 (左卷：诗境与互动 | 右卷：译文/字解/赏析/手记) */}
+        {/* 2. 双联展卷主体区域 (左卷：诗境与互动 | 右卷：译文/字解/赏析/手记，支持单指横滑) */}
         {/* =================================================================== */}
-        <div className="flex-1 grid grid-cols-12 gap-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-theme-border/60">
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 grid grid-cols-12 gap-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-theme-border/60"
+        >
           
           {/* ----------------------------------------------------------------- */}
           {/* 左卷 (6列)：诗屏吟诵、填词推敲、名篇整篇默写与宗师批改圈错 */}
@@ -1029,18 +1104,23 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">
-                            {/* 左侧选项序号 */}
-                            <span
-                              className={`w-5 h-5 rounded-md flex items-center justify-center font-mono font-bold text-[10px] border transition-colors ${
-                                isThisSelected && isAnswerCorrect === true
-                                  ? 'bg-emerald-200/80 text-emerald-800 border-emerald-300'
-                                  : isThisSelected && isAnswerCorrect === false
-                                  ? 'bg-red-200/80 text-red-800 border-red-300'
-                                  : 'bg-theme-surface border-theme-border text-theme-text-muted group-hover:text-theme-primary group-hover:border-theme-primary/40'
-                              }`}
-                            >
-                              {label}
-                            </span>
+                            {/* 左侧选项序号与键盘快捷键提示 */}
+                            <div className="flex items-center space-x-1">
+                              <span
+                                className={`w-5 h-5 rounded-md flex items-center justify-center font-mono font-bold text-[10px] border transition-colors ${
+                                  isThisSelected && isAnswerCorrect === true
+                                    ? 'bg-emerald-200/80 text-emerald-800 border-emerald-300'
+                                    : isThisSelected && isAnswerCorrect === false
+                                    ? 'bg-red-200/80 text-red-800 border-red-300'
+                                    : 'bg-theme-surface border-theme-border text-theme-text-muted group-hover:text-theme-primary group-hover:border-theme-primary/40'
+                                }`}
+                              >
+                                {label}
+                              </span>
+                              <span className="hidden sm:inline-block text-[9px] text-theme-text-muted/50 font-mono">
+                                [{i + 1}]
+                              </span>
+                            </div>
 
                             {/* 中间核心字词 (舒适雅致字号) */}
                             <span

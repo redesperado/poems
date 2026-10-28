@@ -41,6 +41,8 @@ interface TravelMapStageProps {
   currentPoet?: PoetData;
   activePoems?: PoemData[];
   onSelectPoemForPlay?: (poem: PoemData) => void;
+  unlockedArtifactIds?: string[];
+  onCollectArtifact?: (artifactId: string) => void;
 }
 
 // 长江与大运河核心水路节点 (水路·扁舟判定)
@@ -94,6 +96,8 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   currentPoet,
   activePoems,
   onSelectPoemForPlay,
+  unlockedArtifactIds,
+  onCollectArtifact,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -954,6 +958,8 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
             activePoems={activePoems}
             unlockedPoemIds={unlockedPoemIds}
             onSelectPoemForPlay={onSelectPoemForPlay}
+            unlockedArtifactIds={unlockedArtifactIds}
+            onCollectArtifact={onCollectArtifact}
           />
         </div>
       )}

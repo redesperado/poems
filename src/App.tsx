@@ -12,6 +12,8 @@ import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
 import { PoetSwitchModal } from './ui/components/PoetSwitchModal';
 import { PoetHomePage } from './ui/components/PoetHomePage';
 import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
+import { TravelPassportModal } from './ui/components/TravelPassportModal';
+import { SaveBackupModal } from './ui/components/SaveBackupModal';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
@@ -32,6 +34,8 @@ export const App: React.FC = () => {
     completedEventIds,
     choicesMade,
     unlockedBondIds,
+    unlockedArtifactIds,
+    unlockArtifact,
     activePoemToAssemble,
     setActivePoemToAssemble,
     activeLifeChoice,
@@ -61,6 +65,9 @@ export const App: React.FC = () => {
   const [activeEventNotice, setActiveEventNotice] = useState<GameEvent | null>(null);
   const [isPoetSwitchOpen, setIsPoetSwitchOpen] = useState<boolean>(false);
   const [isOnHomePage, setIsOnHomePage] = useState<boolean>(true);
+  const [collectionInitialView, setCollectionInitialView] = useState<'poems' | 'artifacts'>('poems');
+  const [isPassportModalOpen, setIsPassportModalOpen] = useState<boolean>(false);
+  const [isSaveBackupOpen, setIsSaveBackupOpen] = useState<boolean>(false);
 
   // 快捷触发当前地点的诗词创作
   const handleTriggerCurrentLocationPoem = () => {
@@ -126,6 +133,9 @@ export const App: React.FC = () => {
             unlockedPoemIds={unlockedPoemIds}
             poemScores={poemScores}
             unlockedBondIds={unlockedBondIds}
+            unlockedArtifactIds={unlockedArtifactIds}
+            initialView={collectionInitialView}
+            onExportPassport={() => setIsPassportModalOpen(true)}
             onOpenEncounter={(encId) => {
               setIsCollectionOpen(false);
               setIsOnHomePage(false);
@@ -137,6 +147,22 @@ export const App: React.FC = () => {
               setIsOnHomePage(false);
               setActivePoemToAssemble(poem);
             }}
+          />
+        )}
+
+        {/* 通关文牒长图导出弹窗 */}
+        {isPassportModalOpen && (
+          <TravelPassportModal
+            poet={currentPoet}
+            dynasty={currentDynasty}
+            poems={activePack.poems}
+            unlockedPoemIds={unlockedPoemIds}
+            poemScores={poemScores}
+            unlockedBondIds={unlockedBondIds}
+            unlockedArtifactIds={unlockedArtifactIds}
+            mood={mood}
+            completedEventCount={completedEventIds.length}
+            onClose={() => setIsPassportModalOpen(false)}
           />
         )}
       </>
@@ -162,7 +188,16 @@ export const App: React.FC = () => {
         onThemeChange={switchTheme}
         unlockedCount={unlockedPoemIds.length}
         totalCount={activePack.poems.length}
-        onOpenCollection={() => setIsCollectionOpen(true)}
+        artifactCount={unlockedArtifactIds.length}
+        onOpenArtifacts={() => {
+          setCollectionInitialView('artifacts');
+          setIsCollectionOpen(true);
+        }}
+        onOpenSaveBackup={() => setIsSaveBackupOpen(true)}
+        onOpenCollection={() => {
+          setCollectionInitialView('poems');
+          setIsCollectionOpen(true);
+        }}
         onOpenPoetSwitch={() => setIsPoetSwitchOpen(true)}
         onBackToHome={() => setIsOnHomePage(true)}
       />
@@ -179,6 +214,8 @@ export const App: React.FC = () => {
           currentYear={currentYear}
           activePoems={activePack.poems}
           onSelectPoemForPlay={(poem) => setActivePoemToAssemble(poem)}
+          unlockedArtifactIds={unlockedArtifactIds}
+          onCollectArtifact={unlockArtifact}
         />
 
         {/* 右上角悬浮：五维心境水滴仪表盘 */}
@@ -255,6 +292,9 @@ export const App: React.FC = () => {
           unlockedPoemIds={unlockedPoemIds}
           poemScores={poemScores}
           unlockedBondIds={unlockedBondIds}
+          unlockedArtifactIds={unlockedArtifactIds}
+          initialView={collectionInitialView}
+          onExportPassport={() => setIsPassportModalOpen(true)}
           onOpenEncounter={(encId) => {
             setIsCollectionOpen(false);
             triggerEncounter(encId);
@@ -434,6 +474,7 @@ export const App: React.FC = () => {
           unlockedCount={unlockedPoemIds.length}
           totalCount={activePack.poems.length}
           mood={mood}
+          onExportPassport={() => setIsPassportModalOpen(true)}
           onOpenCollection={() => {
             setActiveRetrospective(null);
             setIsCollectionOpen(true);
@@ -478,6 +519,29 @@ export const App: React.FC = () => {
             completeEvent(activeEventNotice?.id || `${enc.primaryPoetId}_meets_${enc.secondaryPoetId}_${enc.year}`);
           }}
           onClose={() => setActiveEncounter(null)}
+        />
+      )}
+
+      {/* 12. 通关文牒 · 山河行履长卷导出弹窗 (TODO-EXP-01 ~ 04) */}
+      {isPassportModalOpen && (
+        <TravelPassportModal
+          poet={currentPoet}
+          dynasty={currentDynasty}
+          poems={activePack.poems}
+          unlockedPoemIds={unlockedPoemIds}
+          poemScores={poemScores}
+          unlockedBondIds={unlockedBondIds}
+          unlockedArtifactIds={unlockedArtifactIds}
+          mood={mood}
+          completedEventCount={completedEventIds.length}
+          onClose={() => setIsPassportModalOpen(false)}
+        />
+      )}
+
+      {/* 13. 离线游历存档备份与恢复弹窗 (TODO-POL-05) */}
+      {isSaveBackupOpen && (
+        <SaveBackupModal
+          onClose={() => setIsSaveBackupOpen(false)}
         />
       )}
     </div>

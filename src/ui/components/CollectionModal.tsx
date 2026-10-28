@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { PoemData } from '../../types/poem';
 import { PoetData } from '../../types/poet';
 import { HISTORICAL_ENCOUNTERS } from '../../data/encounters';
+import { ArtifactCabinet } from './ArtifactCabinet';
+import { ALL_ARTIFACTS } from '../../data/artifacts';
 import {
   X,
   BookOpen,
@@ -27,6 +29,9 @@ interface CollectionModalProps {
   onSelectPoemForPlay?: (poem: PoemData) => void;
   unlockedBondIds?: string[];
   onOpenEncounter?: (encounterId: string) => void;
+  unlockedArtifactIds?: string[];
+  initialView?: 'poems' | 'artifacts';
+  onExportPassport?: () => void;
 }
 
 type CatalogFilter = 'all' | 'unlocked' | 'locked';
@@ -41,7 +46,18 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
   onSelectPoemForPlay,
   unlockedBondIds = [],
   onOpenEncounter,
+  unlockedArtifactIds = [],
+  initialView = 'poems',
+  onExportPassport,
 }) => {
+  // 主展厅视图：传世诗卷 vs 山河风物匣
+  const [mainView, setMainView] = useState<'poems' | 'artifacts'>(initialView);
+
+  const allArtifacts = Object.values(ALL_ARTIFACTS);
+  const collectedArtifactCount = allArtifacts.filter((a) =>
+    unlockedArtifactIds.includes(a.id)
+  ).length;
+
   // 选中的诗词，默认优先选中第一个已解锁的诗词
   const [selectedPoemId, setSelectedPoemId] = useState<string>(
     poems.find((p) => unlockedPoemIds.includes(p.id))?.id || poems[0]?.id || ''
@@ -116,9 +132,80 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
         </header>
 
         {/* ============================================================== */}
-        {/* 2. 主体双栏展陈 (左侧目次 + 右侧墨宝研读卷轴)                   */}
+        {/* 1.5 顶部主展厅切换: 传世诗卷 vs 山河风物匣                       */}
         {/* ============================================================== */}
-        <div className="flex-1 grid grid-cols-12 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-theme-border">
+        <div className="px-6 py-2.5 bg-theme-surface-card/60 border-b border-theme-border flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setMainView('poems')}
+              className={`px-4 py-1.5 rounded-xl font-bold font-poetry text-xs flex items-center space-x-2 transition-all cursor-pointer ${
+                mainView === 'poems'
+                  ? 'bg-theme-primary text-white shadow-xs'
+                  : 'bg-theme-surface border border-theme-border text-theme-text-muted hover:text-theme-text'
+              }`}
+            >
+              <ScrollText className="w-3.5 h-3.5" />
+              <span>传世诗卷与千古羁绊</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  mainView === 'poems'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-theme-primary/10 text-theme-primary'
+                }`}
+              >
+                {unlockedPoemIds.length}/{poems.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setMainView('artifacts')}
+              className={`px-4 py-1.5 rounded-xl font-bold font-poetry text-xs flex items-center space-x-2 transition-all cursor-pointer ${
+                mainView === 'artifacts'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-theme-surface border border-theme-border text-theme-text-muted hover:text-theme-text'
+              }`}
+            >
+              <span>🎒</span>
+              <span>山河风物匣 · 行囊</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  mainView === 'artifacts'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-600/15 text-amber-700 dark:text-amber-300 font-bold'
+                }`}
+              >
+                {collectedArtifactCount}/{allArtifacts.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-[11px] text-theme-text-muted hidden md:inline font-poetry">
+              {mainView === 'poems' ? '沉浸研读 · 宗师绝评 · 手札心境' : '名城名产 · 文人信物 · 四海风物'}
+            </span>
+            {onExportPassport && (
+              <button
+                onClick={onExportPassport}
+                className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold font-poetry shadow-xs flex items-center space-x-1 active:scale-95 transition-all cursor-pointer"
+                title="导出通关文牒高清长卷海报"
+              >
+                <span>📜</span>
+                <span>导出山河文牒长图</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* 2. 主体展陈 (诗卷双栏展陈 OR 风物博古架)                         */}
+        {/* ============================================================== */}
+        {mainView === 'artifacts' ? (
+          <ArtifactCabinet
+            unlockedArtifactIds={unlockedArtifactIds}
+            currentPoetId={poet.id}
+          />
+        ) : (
+          <div className="flex-1 grid grid-cols-12 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-theme-border">
           {/* ------------------------------------------------------------ */}
           {/* 2.1 左栏：传世诗目清单 (Catalog List)                         */}
           {/* ------------------------------------------------------------ */}
@@ -521,6 +608,7 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
             )}
           </main>
         </div>
+      )}
       </div>
     </div>
   );

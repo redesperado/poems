@@ -1,6 +1,7 @@
 import React from 'react';
 import { CityCulturalData } from '../../data/cities';
 import { PoemData } from '../../types/poem';
+import { getCityArtifact } from '../../data/artifacts';
 import {
   Compass,
   Landmark,
@@ -21,6 +22,8 @@ interface CityDetailModalProps {
   activePoems?: PoemData[];
   unlockedPoemIds?: string[];
   onSelectPoemForPlay?: (poem: PoemData) => void;
+  unlockedArtifactIds?: string[];
+  onCollectArtifact?: (artifactId: string) => void;
 }
 
 export const CityDetailModal: React.FC<CityDetailModalProps> = ({
@@ -32,9 +35,17 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
   activePoems,
   unlockedPoemIds,
   onSelectPoemForPlay,
+  unlockedArtifactIds,
+  onCollectArtifact,
 }) => {
   // 严格只读取当前朝代的信息，绝不混杂其他朝代！
   const dynastyData = dynasty === 'tang' ? city.tang : city.song;
+
+  // 匹配本城特色传世风物
+  const cityArtifact = getCityArtifact(city.id);
+  const isArtifactCollected = cityArtifact
+    ? (unlockedArtifactIds || []).includes(cityArtifact.id)
+    : false;
 
   // 查找当期主角在此城池关联的收录诗作
   const matchingPoems = (activePoems || []).filter((p) => {
@@ -256,6 +267,61 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
               <p className="text-[11px] text-slate-700 mt-1">{dynastyData.local_specialty}</p>
             </div>
           </div>
+
+          {/* 名城风物行囊收纳 (TODO-ART-03) */}
+          {cityArtifact && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/90 via-emerald-50/70 to-amber-50/90 border border-amber-200/90 shadow-xs space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start space-x-2.5">
+                  <div className="text-2xl p-2 rounded-2xl bg-white border border-amber-200 shadow-xs shrink-0">
+                    {cityArtifact.icon}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                      <span className="font-bold text-xs text-amber-950 font-poetry">
+                        {cityArtifact.name}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                        {cityArtifact.categoryName}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold font-poetry">
+                        {cityArtifact.rarity === 'legendary'
+                          ? '绝品'
+                          : cityArtifact.rarity === 'epic'
+                          ? '珍品'
+                          : '雅物'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900 font-poetry italic mt-1 leading-snug">
+                      “{cityArtifact.quote}”
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0">
+                  {isArtifactCollected ? (
+                    <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-bold border border-emerald-300 flex items-center space-x-1">
+                      <span>✓ 已纳归行囊</span>
+                    </span>
+                  ) : isCurrentLocation ? (
+                    <button
+                      onClick={() => onCollectArtifact?.(cityArtifact.id)}
+                      className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-[11px] font-bold font-poetry shadow-sm flex items-center space-x-1 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span>✦ 采撷归囊</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 bg-white/80 border border-slate-200 px-2 py-1 rounded-full">
+                      身在此城可采撷
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-700 leading-relaxed indent-2 border-t border-amber-200/50 pt-1.5">
+                {cityArtifact.description}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 3. 底部游历操作栏 */}

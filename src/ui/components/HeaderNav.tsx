@@ -15,6 +15,9 @@ interface HeaderNavProps {
   onOpenCollection: () => void;
   onOpenPoetSwitch?: () => void;
   onBackToHome?: () => void;
+  artifactCount?: number;
+  onOpenArtifacts?: () => void;
+  onOpenSaveBackup?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -29,6 +32,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onOpenCollection,
   onOpenPoetSwitch,
   onBackToHome,
+  artifactCount,
+  onOpenArtifacts,
+  onOpenSaveBackup,
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -146,6 +152,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           <span className="font-medium">文人</span>
         </button>
 
+        {/* 离线存档备份与导入入口 (TODO-POL-05) */}
+        {onOpenSaveBackup && (
+          <button
+            onClick={onOpenSaveBackup}
+            className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 rounded-full border border-theme-border bg-theme-surface-card hover:border-theme-border-highlight text-theme-text text-xs transition-all active:scale-95 cursor-pointer font-poetry shadow-2xs"
+            title="备份导出或导入离线游历存档"
+          >
+            <span>💾</span>
+            <span className="font-medium">存档</span>
+          </button>
+        )}
+
         {/* 主题换肤下拉切换 (点击常驻展开，彻底消除 Hover 间隙抖动) */}
         <div ref={themeMenuRef} className="relative">
           <button
@@ -212,6 +230,23 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </div>
           )}
         </div>
+
+        {/* 行囊风物入口 */}
+        {onOpenArtifacts && (
+          <button
+            onClick={onOpenArtifacts}
+            className="hidden sm:flex items-center space-x-1 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 font-bold hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-95 font-poetry cursor-pointer"
+            title="打开行囊与山河风物匣"
+          >
+            <span>🎒</span>
+            <span>行囊</span>
+            {artifactCount !== undefined && (
+              <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                {artifactCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* 典藏阁入口 */}
         <button

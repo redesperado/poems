@@ -9,6 +9,9 @@ import { HISTORICAL_ENCOUNTERS } from '../data/encounters';
 import { LOCATIONS } from '../data/locations';
 import { POET_PACKS, PoetPack } from '../data/poets';
 import { loadGameSave, persistGameSave, PlayerSaveRecord } from '../engine/save/db';
+import { ALL_ARTIFACTS, getCityArtifact, getPoetExclusiveArtifacts } from '../data/artifacts';
+import { ArtifactItem } from '../types/artifact';
+import { soundEngine } from '../engine/audio/soundEngine';
 
 export interface ActiveCrisisState {
   year: number;
@@ -59,6 +62,7 @@ export function useGameStore() {
   const [completedEventIds, setCompletedEventIds] = useState<string[]>([]);
   const [choicesMade, setChoicesMade] = useState<Record<string, string>>({});
   const [unlockedBondIds, setUnlockedBondIds] = useState<string[]>([]);
+  const [unlockedArtifactIds, setUnlockedArtifactIds] = useState<string[]>([]);
 
   const [activePoemToAssemble, setActivePoemToAssemble] = useState<PoemData | null>(null);
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null);
@@ -90,6 +94,13 @@ export function useGameStore() {
           setCompletedEventIds(save.completedEventIds || []);
           setChoicesMade(save.choicesMade || {});
           setUnlockedBondIds(save.unlockedBondIds || []);
+          // 初始化文人随身本命信物与已收集风物
+          const poetHeirlooms = getPoetExclusiveArtifacts(currentPoet.id).map((a) => a.id);
+          const initialHeirloom = poetHeirlooms.length > 0 ? [poetHeirlooms[0]] : [];
+          const savedArtifacts = save.unlockedArtifactIds || [];
+          const mergedArtifacts = Array.from(new Set([...initialHeirloom, ...savedArtifacts]));
+          setUnlockedArtifactIds(mergedArtifacts);
+
           if (LOCATIONS[save.locationId]) {
             setCurrentLocation(LOCATIONS[save.locationId]);
           }
@@ -125,6 +136,11 @@ export function useGameStore() {
     setActivePoemToAssemble(null);
     setActiveLifeChoice(null);
     setActiveCrisis(null);
+
+    // 载入新文人本命信物
+    const poetHeirlooms = getPoetExclusiveArtifacts(poetId).map((a) => a.id);
+    const initialHeirloom = poetHeirlooms.length > 0 ? [poetHeirlooms[0]] : [];
+    setUnlockedArtifactIds((prev) => Array.from(new Set([...prev, ...initialHeirloom])));
   }, []);
 
   // 切换主题 (运行时换肤)
@@ -144,11 +160,13 @@ export function useGameStore() {
         completedEventIds,
         choicesMade,
         currentTheme: themeId,
+        unlockedBondIds,
+        unlockedArtifactIds,
         updatedAt: Date.now(),
       };
       persistGameSave(saveRecord);
     },
-    [currentPoet.id, currentYear, currentLocation.id, mood, unlockedPoemIds, poemScores, completedEventIds, choicesMade]
+    [currentPoet.id, currentYear, currentLocation.id, mood, unlockedPoemIds, poemScores, completedEventIds, choicesMade, unlockedBondIds, unlockedArtifactIds]
   );
 
   // 游历至新地点
@@ -266,13 +284,14 @@ export function useGameStore() {
           choicesMade,
           currentTheme,
           unlockedBondIds,
+          unlockedArtifactIds,
           updatedAt: Date.now(),
         });
 
         return nextCompleted;
       });
     },
-    [activePack.events, currentPoet.id, currentYear, currentLocation, mood, unlockedPoemIds, poemScores, choicesMade, currentTheme, unlockedBondIds]
+    [activePack.events, currentPoet.id, currentYear, currentLocation, mood, unlockedPoemIds, poemScores, choicesMade, currentTheme, unlockedBondIds, unlockedArtifactIds]
   );
 
   // 触发人生岔路
@@ -392,6 +411,26 @@ export function useGameStore() {
         }
       }
 
+      // 妙品甲等诗词通感风物掉落 (TODO-ART-03)
+      let nextArtifacts = [...unlockedArtifactIds];
+      if (score === 100) {
+        const POEM_ARTIFACT_DROPS: Record<string, string> = {
+          poem_lb_02: 'artifact_jiange_tongling', // 《蜀道难》 -> 蜀道铜铃
+          poem_lb_05: 'artifact_jinling_chunjiu', // 《将进酒》 -> 金陵春酒
+          poem_dufu_01: 'artifact_qizhao_gong', // 《望岳》 -> 齐赵良弓
+          poem_dufu_03: 'artifact_caotang_li', // 《茅屋》 -> 草堂笠
+          poem_su_01: 'artifact_dongpo_liji', // 《定风波》 -> 东坡笠屐
+          poem_su_02: 'artifact_weirou_shidan', // 《水调歌头》 -> 黄州煨肉法帖
+          poem_lqz_01: 'artifact_shuyu_guqin', // 《如梦令》 -> 漱玉泉古琴
+          poem_lqz_03: 'artifact_zemeng_mudiao', // 《声声慢》 -> 双溪舴艋舟
+        };
+        const dropId = POEM_ARTIFACT_DROPS[poemId];
+        if (dropId && !nextArtifacts.includes(dropId)) {
+          nextArtifacts.push(dropId);
+          setUnlockedArtifactIds(nextArtifacts);
+        }
+      }
+
       // 持久化到 IndexedDB
       persistGameSave({
         id: `save_${currentPoet.id}`,
@@ -405,10 +444,11 @@ export function useGameStore() {
         choicesMade,
         currentTheme,
         unlockedBondIds,
+        unlockedArtifactIds: nextArtifacts,
         updatedAt: Date.now(),
       });
     },
-    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme, unlockedBondIds]
+    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme, unlockedBondIds, unlockedArtifactIds]
   );
 
   // 触发终极生平总评
@@ -459,10 +499,11 @@ export function useGameStore() {
         choicesMade,
         currentTheme,
         unlockedBondIds: nextBonds,
+        unlockedArtifactIds,
         updatedAt: Date.now(),
       });
     },
-    [unlockedBondIds, mood, currentPoet.id, currentYear, currentLocation.id, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme]
+    [unlockedBondIds, mood, currentPoet.id, currentYear, currentLocation.id, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme, unlockedArtifactIds]
   );
 
   // 重走诗仙长卷
@@ -492,9 +533,66 @@ export function useGameStore() {
       choicesMade: {},
       currentTheme,
       unlockedBondIds,
+      unlockedArtifactIds,
       updatedAt: Date.now(),
     });
-  }, [currentPoet, unlockedPoemIds, poemScores, currentTheme, unlockedBondIds]);
+  }, [currentPoet, unlockedPoemIds, poemScores, currentTheme, unlockedBondIds, unlockedArtifactIds]);
+
+  // 纳藏山河风物与文人本命信物 (TODO-ART-01 ~ 03)
+  const unlockArtifact = useCallback(
+    (artifactId: string) => {
+      const art = ALL_ARTIFACTS[artifactId];
+      if (!art) return;
+      if (unlockedArtifactIds.includes(artifactId)) return;
+
+      const nextArtifacts = [...unlockedArtifactIds, artifactId];
+      setUnlockedArtifactIds(nextArtifacts);
+
+      // 施加心境通感加成
+      let updatedMood = { ...mood };
+      if (art.moodBonus) {
+        Object.entries(art.moodBonus).forEach(([k, delta]) => {
+          const dim = k as keyof MoodState;
+          if (updatedMood[dim] !== undefined && typeof delta === 'number') {
+            updatedMood[dim] = Math.max(0, Math.min(100, updatedMood[dim] + delta));
+          }
+        });
+        setMood(updatedMood);
+      }
+
+      soundEngine.playJadeChime();
+
+      persistGameSave({
+        id: `save_${currentPoet.id}`,
+        poetId: currentPoet.id,
+        year: currentYear,
+        locationId: currentLocation.id,
+        mood: updatedMood,
+        unlockedPoemIds,
+        poemScores,
+        completedEventIds,
+        choicesMade,
+        currentTheme,
+        unlockedBondIds,
+        unlockedArtifactIds: nextArtifacts,
+        updatedAt: Date.now(),
+      });
+    },
+    [unlockedArtifactIds, mood, currentPoet.id, currentYear, currentLocation.id, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme, unlockedBondIds]
+  );
+
+  // 采撷当前城市特产风物
+  const collectCityArtifact = useCallback(
+    (cityId: string): ArtifactItem | null => {
+      const art = getCityArtifact(cityId);
+      if (art && !unlockedArtifactIds.includes(art.id)) {
+        unlockArtifact(art.id);
+        return art;
+      }
+      return null;
+    },
+    [unlockedArtifactIds, unlockArtifact]
+  );
 
   return {
     currentPoet,
@@ -514,6 +612,9 @@ export function useGameStore() {
     completedEventIds,
     choicesMade,
     unlockedBondIds,
+    unlockedArtifactIds,
+    unlockArtifact,
+    collectCityArtifact,
     activePoemToAssemble,
     setActivePoemToAssemble,
     activeEvent,

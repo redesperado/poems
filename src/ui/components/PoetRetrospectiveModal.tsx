@@ -23,6 +23,7 @@ export interface PoetRetrospectiveModalProps {
   onOpenCollection: () => void;
   onRestartJourney: () => void;
   onOpenPoetSwitch?: () => void;
+  onExportPassport?: () => void;
   onClose: () => void;
 }
 
@@ -35,6 +36,7 @@ export const PoetRetrospectiveModal: React.FC<PoetRetrospectiveModalProps> = ({
   onOpenCollection,
   onRestartJourney,
   onOpenPoetSwitch,
+  onExportPassport,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<'epitaph' | 'appraisals' | 'legacy'>('epitaph');
@@ -288,6 +290,15 @@ export const PoetRetrospectiveModal: React.FC<PoetRetrospectiveModalProps> = ({
         {/* 底部三大行动按键 */}
         <div className="relative pt-3 border-t border-stone-800 shrink-0 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
+            {onExportPassport && (
+              <button
+                onClick={onExportPassport}
+                className="px-4 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-poetry font-bold text-xs shadow-md transition-all active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+              >
+                <span>📜</span>
+                <span>镌印文牒 · 导出长图</span>
+              </button>
+            )}
             <button
               onClick={onOpenCollection}
               className="px-4 py-2.5 rounded-full bg-stone-800 hover:bg-stone-700 border border-amber-500/40 text-amber-300 font-poetry font-bold text-xs shadow-md transition-all active:scale-95 flex items-center space-x-1.5 cursor-pointer"
