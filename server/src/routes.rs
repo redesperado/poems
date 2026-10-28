@@ -1,8 +1,8 @@
 use axum::{
-    extract::{HeaderMap, Path, Query, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -164,7 +164,10 @@ async fn get_poet_journey(
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-        guard_some!(poet, (StatusCode::NOT_FOUND, "未找到文人".into()));
+        let poet = match poet {
+            Some(p) => p,
+            None => return Err((StatusCode::NOT_FOUND, "未找到文人".into())),
+        };
 
         let events = sqlx::query_as::<_, PoetEvent>(
             "SELECT * FROM poet_events WHERE poet_id = $1 ORDER BY sort_order ASC, year ASC",
@@ -203,17 +206,6 @@ async fn get_poet_journey(
         Err((StatusCode::SERVICE_UNAVAILABLE, "数据库未连接".into()))
     }
 }
-
-// 宏辅助
-macro_rules! guard_some {
-    ($val:expr, $err:expr) => {
-        match $val {
-            Some(v) => v,
-            None => return Err($err),
-        }
-    };
-}
-pub(crate) use guard_some;
 
 // -----------------------------------------------------------------------------
 // 名城舆图接口

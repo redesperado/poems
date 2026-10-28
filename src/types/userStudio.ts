@@ -236,7 +236,7 @@ export const INITIAL_STUDY_RECORDS: PoemStudyRecord[] = [
   },
   {
     id: 'rec_04',
-    poemId: 'ru_meng_ling',
+    poemId: 'ru_meng_ling_xi_ting',
     poemTitle: '如梦令 · 常记溪亭日暮',
     poetName: '李清照',
     dynasty: 'song',

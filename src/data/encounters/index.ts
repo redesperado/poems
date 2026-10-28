@@ -213,7 +213,7 @@ export const HISTORICAL_ENCOUNTERS: Record<string, PoetEncounterData> = {
     title: '金石良缘 · 汴京赌书泼茶',
     subtitle: '公元1101年（建中靖国元年）· 汴京相许 · 金石之契',
     year: 1101,
-    locationId: 'bianjing',
+    locationId: 'kaifeng',
     locationName: '汴京（开封）',
     primaryPoetId: 'li_qingzhao',
     secondaryPoetId: 'zhao_mingcheng',

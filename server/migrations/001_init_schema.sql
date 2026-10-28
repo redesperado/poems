@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS poems (
     title VARCHAR(128) NOT NULL,                      -- 诗词标题
     dynasty VARCHAR(32) NOT NULL,                     -- 朝代
     year INT,                                         -- 创作公元年份
-    location_id VARCHAR(64) REFERENCES locations(id) ON DELETE SET NULL,
+    location_id VARCHAR(64),                          -- 对应古迹/胜迹城池
     form VARCHAR(64) NOT NULL,                        -- 体裁: '七言古诗', '五言绝句', '词牌·念奴娇'
     background TEXT NOT NULL,                         -- 创作缘起与背景赏析
     paragraphs JSONB NOT NULL,                        -- 完整句列: ["噫吁嚱，危乎高哉！", "蜀道之难，难于上青天！"]
@@ -133,12 +133,12 @@ CREATE TABLE IF NOT EXISTS poet_events (
     id VARCHAR(64) PRIMARY KEY,
     poet_id VARCHAR(64) NOT NULL REFERENCES poets(id) ON DELETE CASCADE,
     year INT NOT NULL,                                -- 发生公元年份
-    location_id VARCHAR(64) REFERENCES locations(id) ON DELETE SET NULL,
+    location_id VARCHAR(64),                          -- 发生城池名
     title VARCHAR(128) NOT NULL,                      -- 纪事标题
     event_type VARCHAR(32) DEFAULT 'milestone',       -- 'milestone', 'creation', 'choice', 'crisis', 'encounter'
     historical_context TEXT,                          -- 时代大背景
     narrative TEXT NOT NULL,                          -- 沉浸式情境正文
-    triggered_poem_id VARCHAR(64) REFERENCES poems(id) ON DELETE SET NULL,
+    triggered_poem_id VARCHAR(64),
     triggered_choice_id VARCHAR(64),
     triggered_encounter_id VARCHAR(64),
     choices JSONB DEFAULT '[]'::jsonb,                -- 历史抉择分支与心境变动
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
     historical_story TEXT,                            -- 文史考据出处
     icon VARCHAR(64),
     poet_exclusive_id VARCHAR(64) REFERENCES poets(id) ON DELETE SET NULL,
-    city_origin_id VARCHAR(64) REFERENCES locations(id) ON DELETE SET NULL,
+    city_origin_id VARCHAR(64),
     buffs JSONB DEFAULT '{}'::jsonb,                  -- 装备/纳藏心境加成
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -186,13 +186,13 @@ FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
 CREATE TABLE IF NOT EXISTS encounters (
     id VARCHAR(64) PRIMARY KEY,
     primary_poet_id VARCHAR(64) NOT NULL REFERENCES poets(id) ON DELETE CASCADE,
-    secondary_poet_id VARCHAR(64) NOT NULL REFERENCES poets(id) ON DELETE CASCADE,
+    secondary_poet_id VARCHAR(64) NOT NULL,           -- 如 'du_fu', 'fo_yin', 'zhao_mingcheng' 等千古名仕
     year INT NOT NULL,
-    location_id VARCHAR(64) REFERENCES locations(id) ON DELETE SET NULL,
+    location_id VARCHAR(64),
     title VARCHAR(128) NOT NULL,                      -- 如 "日与月相撞 · 洛阳初遇"
     description TEXT,
     dialogues JSONB NOT NULL,                         -- 双人对坐分句长卷对白
-    gift_poem_id VARCHAR(64) REFERENCES poems(id) ON DELETE SET NULL,
+    gift_poem_id VARCHAR(64),
     bond_seal JSONB NOT NULL,                         -- 专属朱砂羁绊印鉴配置
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS poem_study_records (
     id VARCHAR(64) PRIMARY KEY,
     user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     save_slot_id VARCHAR(64) REFERENCES journey_saves(id) ON DELETE SET NULL,
-    poem_id VARCHAR(64) NOT NULL REFERENCES poems(id) ON DELETE CASCADE,
+    poem_id VARCHAR(64) NOT NULL,                     -- 对应诗词题库 ID (支持模块化/动态扩展)
     mode VARCHAR(32) DEFAULT 'assembly',              -- 'assembly' (推敲) | 'dictation' (默写) | 'recitation' (吟诵)
     score INT NOT NULL,                               -- 100 | 75 | 50
     grade VARCHAR(32) NOT NULL,                       -- '甲等·妙品' | '乙等·通达' | '丙等·尚可'
@@ -259,9 +259,9 @@ CREATE INDEX IF NOT EXISTS idx_study_records_poem ON poem_study_records(poem_id)
 CREATE TABLE IF NOT EXISTS poetry_notes (
     id VARCHAR(64) PRIMARY KEY,
     user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    poem_id VARCHAR(64) REFERENCES poems(id) ON DELETE SET NULL,
-    poet_id VARCHAR(64) REFERENCES poets(id) ON DELETE SET NULL,
-    location_id VARCHAR(64) REFERENCES locations(id) ON DELETE SET NULL,
+    poem_id VARCHAR(64),
+    poet_id VARCHAR(64),
+    location_id VARCHAR(64),
     title VARCHAR(128) NOT NULL,                      -- 札记题头
     content TEXT NOT NULL,                            -- 正文随笔感悟
     tags JSONB DEFAULT '[]'::jsonb,                   -- 标签 (如: ["#名句赏析", "#东坡旷达"])

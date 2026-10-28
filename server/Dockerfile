@@ -4,7 +4,7 @@
 # ==============================================================================
 
 # Stage 1: Build binary
-FROM rust:1.77-slim AS builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
