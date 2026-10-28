@@ -2,7 +2,10 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LocationData } from '../../types/location';
+import { PoetData } from '../../types/poet';
+import { PoemData } from '../../types/poem';
 import { MAJOR_CITIES, CityCulturalData } from '../../data/cities';
+import { soundEngine } from '../../engine/audio/soundEngine';
 import { CityDetailModal } from './CityDetailModal';
 import { WorldChronicleDrawer } from './WorldChronicleDrawer';
 import {
@@ -35,6 +38,31 @@ interface TravelMapStageProps {
   onTravel: (locationId: string) => void;
   unlockedPoemIds: string[];
   currentYear?: number;
+  currentPoet?: PoetData;
+  activePoems?: PoemData[];
+  onSelectPoemForPlay?: (poem: PoemData) => void;
+}
+
+// 长江与大运河核心水路节点 (水路·扁舟判定)
+const WATERWAY_LOCATIONS = new Set([
+  'kuizhou', 'baidicheng',
+  'jiangxia', 'huanghelou',
+  'xunyang', 'lu_shan',
+  'jinling',
+  'guangling', 'yangzhou',
+  'gusu',
+  'linan',
+  'xiangjiang', 'changsha',
+]);
+
+function getTravelMode(fromId: string, toId: string): 'water' | 'land' {
+  if (WATERWAY_LOCATIONS.has(fromId) && WATERWAY_LOCATIONS.has(toId)) {
+    return 'water';
+  }
+  if (['baidicheng', 'huanghelou', 'lu_shan', 'xunyang'].includes(toId) && WATERWAY_LOCATIONS.has(fromId)) {
+    return 'water';
+  }
+  return 'land';
 }
 
 // 历史真实古代官道线网 (连接十六大名城，角色行历通道)
@@ -61,10 +89,24 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   currentLocation,
   dynasty,
   onTravel,
+  unlockedPoemIds,
   currentYear: currentYearProp,
+  currentPoet,
+  activePoems,
+  onSelectPoemForPlay,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+
+  // 游历状态播报与动态巡游 (TODO-POL-01)
+  const [travelNotice, setTravelNotice] = useState<{
+    isTraveling: boolean;
+    mode: 'water' | 'land';
+    text: string;
+  } | null>(null);
+
+  const prevLocationIdRef = useRef<string>(currentLocation.id);
+  const travelPolylineRef = useRef<L.Polyline | null>(null);
 
   // 地图底图样式模式:
   // 'relief' (真实华夏山川地貌切片) | 'satellite' (真实遥感影像切片) | 'silk' (青绿绢本金字塔切片) | 'carto' (水墨工笔舆图切片)
@@ -143,25 +185,79 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     }
   }, [getCityLatLng]);
 
-  // 生成主角棋子 DivIcon
-  const createPlayerIcon = useCallback((d: 'tang' | 'song') => {
-    return L.divIcon({
-      className: 'custom-div-icon pointer-events-none z-30',
-      html: `
-        <div class="relative flex flex-col items-center select-none">
-          <div class="absolute -inset-3.5 rounded-full bg-amber-500/35 animate-ping"></div>
-          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white flex items-center justify-center font-poetry font-bold text-xs shadow-2xl border-2 border-amber-200 ring-2 ring-amber-600/50">
-            ${d === 'tang' ? '太白' : '东坡'}
+  // 生成主角棋子 DivIcon (支持四大文人自适应头像与水路扁舟/陆路策马状态)
+  const createPlayerIcon = useCallback(
+    (
+      poet?: PoetData,
+      d?: 'tang' | 'song',
+      travelStatus?: { isTraveling: boolean; mode: 'water' | 'land' }
+    ) => {
+      let poetShortName = '文宗';
+      if (poet?.id === 'li_bai') poetShortName = '太白';
+      else if (poet?.id === 'du_fu') poetShortName = '少陵';
+      else if (poet?.id === 'su_shi') poetShortName = '东坡';
+      else if (poet?.id === 'li_qingzhao') poetShortName = '易安';
+      else if (poet?.name_cn) poetShortName = poet.name_cn.slice(-2);
+      else if (d === 'tang') poetShortName = '太白';
+      else poetShortName = '东坡';
+
+      const isTraveling = travelStatus?.isTraveling;
+      const mode = travelStatus?.mode || 'land';
+
+      let badgeText = '当前驻足';
+      let badgeClass = 'bg-amber-600 text-white border-amber-300';
+      let iconEmoji = '';
+
+      if (isTraveling) {
+        if (mode === 'water') {
+          badgeText = '顺江扁舟';
+          badgeClass = 'bg-teal-700 text-teal-50 border-teal-300 animate-pulse';
+          iconEmoji = '🛶';
+        } else {
+          badgeText = '策马驿道';
+          badgeClass = 'bg-amber-700 text-amber-50 border-amber-300 animate-pulse';
+          iconEmoji = '🐎';
+        }
+      }
+
+      return L.divIcon({
+        className: 'custom-div-icon pointer-events-none z-30',
+        html: `
+          <div class="relative flex flex-col items-center select-none transition-all">
+            ${
+              isTraveling
+                ? `
+              <div class="absolute -inset-4 rounded-full ${
+                mode === 'water' ? 'bg-teal-400/40' : 'bg-amber-500/40'
+              } animate-ping"></div>
+            `
+                : `
+              <div class="absolute -inset-3.5 rounded-full bg-amber-500/35 animate-ping"></div>
+            `
+            }
+            
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br ${
+              isTraveling
+                ? mode === 'water'
+                  ? 'from-teal-600 via-teal-700 to-teal-950 ring-2 ring-teal-300'
+                  : 'from-amber-600 via-orange-700 to-amber-950 ring-2 ring-amber-300'
+                : 'from-amber-600 via-amber-700 to-amber-900 ring-2 ring-amber-600/50'
+            } text-white flex items-center justify-center font-poetry font-bold text-xs shadow-2xl border-2 border-amber-200">
+              ${poetShortName}
+            </div>
+
+            <div class="mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-poetry whitespace-nowrap shadow-md flex items-center space-x-1 border ${badgeClass}">
+              ${iconEmoji ? `<span class="text-[11px]">${iconEmoji}</span>` : ''}
+              <span>${badgeText}</span>
+            </div>
           </div>
-          <div class="mt-1 px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold font-poetry whitespace-nowrap shadow-md flex items-center space-x-1 border border-amber-300">
-            <span>当前驻足</span>
-          </div>
-        </div>
-      `,
-      iconSize: [80, 55],
-      iconAnchor: [40, 20],
-    });
-  }, []);
+        `,
+        iconSize: [90, 60],
+        iconAnchor: [45, 22],
+      });
+    },
+    []
+  );
 
   // =========================================================================
   // 1. Leaflet 核心地图容器与图层组初始化 (仅执行一次，视口不重置)
@@ -197,7 +293,7 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     // 初始化主角标记
     const initialPlayerLatLng = getCityLatLng(currentLocation.id);
     const playerMarker = L.marker(initialPlayerLatLng, {
-      icon: createPlayerIcon(dynasty),
+      icon: createPlayerIcon(currentPoet, dynasty),
       zIndexOffset: 1000,
     }).addTo(map);
     playerMarkerRef.current = playerMarker;
@@ -546,16 +642,16 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   ]);
 
   // =========================================================================
-  // 4. 朝代切换时更新主角标记样式
+  // 4. 朝代或文人切换时更新主角标记样式
   // =========================================================================
   useEffect(() => {
     if (playerMarkerRef.current) {
-      playerMarkerRef.current.setIcon(createPlayerIcon(dynasty));
+      playerMarkerRef.current.setIcon(createPlayerIcon(currentPoet, dynasty));
     }
-  }, [dynasty, createPlayerIcon]);
+  }, [dynasty, currentPoet, createPlayerIcon]);
 
   // =========================================================================
-  // 5. 游历地点变化时：主角平滑策马行历动画 (1.2s 缓动行路)
+  // 5. 游历地点变化时：主角平滑巡游动画 (水路顺江扁舟 vs 陆路策马疾驰，带音效与动态虚线)
   // =========================================================================
   useEffect(() => {
     if (!playerMarkerRef.current || !mapInstanceRef.current) return;
@@ -567,11 +663,51 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       Math.abs(startLatLng.lat - destLatLng[0]) < 0.001 &&
       Math.abs(startLatLng.lng - destLatLng[1]) < 0.001
     ) {
+      prevLocationIdRef.current = currentLocation.id;
       return;
     }
 
+    const prevLocId = prevLocationIdRef.current;
+    const travelMode = getTravelMode(prevLocId, currentLocation.id);
+    const poetName = currentPoet?.name_cn || (dynasty === 'tang' ? '李白' : '苏轼');
+    const cityName = currentLocation.name_cn || '胜境';
+
+    // 1. 设置巡游状态与浮窗播报
+    setTravelNotice({
+      isTraveling: true,
+      mode: travelMode,
+      text:
+        travelMode === 'water'
+          ? `🛶 顺江扁舟 · 【${poetName}】扁舟泛波，顺江东下，轻舟将过万重山，前往【${cityName}】...`
+          : `🐎 策马疾驰 · 【${poetName}】快马加鞭，踏遍青山驿道，前往【${cityName}】...`,
+    });
+
+    // 2. 播放国风行路拟真音效
+    if (travelMode === 'water') {
+      soundEngine.playWaterWave();
+    } else {
+      soundEngine.playHorseGallop();
+    }
+
+    // 3. 动态绘制行路虚线金芒
+    if (travelPolylineRef.current) {
+      travelPolylineRef.current.remove();
+    }
+    const trailLine = L.polyline([startLatLng, destLatLng], {
+      color: travelMode === 'water' ? '#0D9488' : '#D97706',
+      weight: 3.5,
+      dashArray: '8, 8',
+      opacity: 0.85,
+    }).addTo(mapInstanceRef.current);
+    travelPolylineRef.current = trailLine;
+
+    // 4. 切换为行历中动态棋子 (显示扁舟或战马)
+    playerMarkerRef.current.setIcon(
+      createPlayerIcon(currentPoet, dynasty, { isTraveling: true, mode: travelMode })
+    );
+
     const startTime = performance.now();
-    const duration = 1200; // 1.2 秒策马行路
+    const duration = 1600; // 1.6 秒沉浸巡游
 
     const animateStep = (now: number) => {
       const elapsed = now - startTime;
@@ -590,13 +726,38 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
       if (progress < 1.0) {
         requestAnimationFrame(animateStep);
       } else {
-        // 到达后平滑居中
+        // 到达！奏玉磬清响
+        soundEngine.playJadeChime(659.25);
+        if (travelPolylineRef.current) {
+          travelPolylineRef.current.remove();
+          travelPolylineRef.current = null;
+        }
+
+        // 切换回驻足静态棋子
+        playerMarkerRef.current?.setIcon(
+          createPlayerIcon(currentPoet, dynasty, { isTraveling: false, mode: travelMode })
+        );
+
+        // 到达后平滑居中聚焦
         mapInstanceRef.current?.panTo(destLatLng, { animate: true, duration: 0.6 });
+
+        // 播报到达
+        setTravelNotice({
+          isTraveling: false,
+          mode: travelMode,
+          text: `✨ 已抵【${cityName}】· 履痕踏遍，诗心自适`,
+        });
+
+        setTimeout(() => {
+          setTravelNotice(null);
+        }, 3200);
+
+        prevLocationIdRef.current = currentLocation.id;
       }
     };
 
     requestAnimationFrame(animateStep);
-  }, [currentLocation.id, getCityLatLng]);
+  }, [currentLocation.id, currentLocation.name_cn, currentPoet, dynasty, getCityLatLng, createPlayerIcon]);
 
   // 地图缩放与复位控制
   const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
@@ -759,6 +920,23 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
         </div>
       )}
 
+      {/* 4. 游历巡游播报浮条 (TODO-POL-01) */}
+      {travelNotice && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] animate-in fade-in slide-in-from-top-4 pointer-events-none max-w-[90vw]">
+          <div
+            className={`px-4 py-2.5 rounded-full shadow-2xl border backdrop-blur-md flex items-center space-x-2 text-xs font-poetry font-bold ${
+              travelNotice.isTraveling
+                ? travelNotice.mode === 'water'
+                  ? 'bg-teal-950/90 text-teal-100 border-teal-400/60 shadow-teal-950/50'
+                  : 'bg-amber-950/90 text-amber-100 border-amber-400/60 shadow-amber-950/50'
+                : 'bg-stone-900/95 text-amber-200 border-amber-400/70 shadow-jade-glow animate-bounce'
+            }`}
+          >
+            <span>{travelNotice.text}</span>
+          </div>
+        </div>
+      )}
+
       {/* 6. 城市人文详情弹窗 (严格限定当朝信息，绝无跨朝代信息混杂) */}
       {activeCityDetail && (
         <div className="relative z-[2000]">
@@ -773,6 +951,9 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
               onTravel(cityId);
             }}
             onClose={() => setActiveCityDetail(null)}
+            activePoems={activePoems}
+            unlockedPoemIds={unlockedPoemIds}
+            onSelectPoemForPlay={onSelectPoemForPlay}
           />
         </div>
       )}

@@ -159,9 +159,12 @@ export const App: React.FC = () => {
         <TravelMapStage
           currentLocation={currentLocation}
           dynasty={currentDynasty}
+          currentPoet={currentPoet}
           onTravel={travelToLocation}
           unlockedPoemIds={unlockedPoemIds}
           currentYear={currentYear}
+          activePoems={activePack.poems}
+          onSelectPoemForPlay={(poem) => setActivePoemToAssemble(poem)}
         />
 
         {/* 右上角悬浮：五维心境水滴仪表盘 */}

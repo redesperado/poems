@@ -1,5 +1,6 @@
 import React from 'react';
 import { CityCulturalData } from '../../data/cities';
+import { PoemData } from '../../types/poem';
 import {
   Compass,
   Landmark,
@@ -8,6 +9,7 @@ import {
   Footprints,
   X,
   Scroll,
+  Sparkles,
 } from 'lucide-react';
 
 interface CityDetailModalProps {
@@ -16,6 +18,9 @@ interface CityDetailModalProps {
   isCurrentLocation: boolean;
   onTravelHere: (cityId: string) => void;
   onClose: () => void;
+  activePoems?: PoemData[];
+  unlockedPoemIds?: string[];
+  onSelectPoemForPlay?: (poem: PoemData) => void;
 }
 
 export const CityDetailModal: React.FC<CityDetailModalProps> = ({
@@ -24,9 +29,30 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
   isCurrentLocation,
   onTravelHere,
   onClose,
+  activePoems,
+  unlockedPoemIds,
+  onSelectPoemForPlay,
 }) => {
   // 严格只读取当前朝代的信息，绝不混杂其他朝代！
   const dynastyData = dynasty === 'tang' ? city.tang : city.song;
+
+  // 查找当期主角在此城池关联的收录诗作
+  const matchingPoems = (activePoems || []).filter((p) => {
+    if (p.location_id === city.id) return true;
+    if (city.id === 'chang_an' && p.location_id === 'chang_an') return true;
+    if (city.id === 'jiangyou' && (p.location_id === 'sichuan' || p.location_id === 'jiangyou')) return true;
+    if (city.id === 'jiangxia' && (p.location_id === 'huanghelou' || p.location_id === 'jiangxia')) return true;
+    if (city.id === 'xunyang' && (p.location_id === 'lu_shan' || p.location_id === 'xunyang')) return true;
+    if (city.id === 'kuizhou' && (p.location_id === 'baidicheng' || p.location_id === 'kuizhou')) return true;
+    if (city.id === 'guangling' && (p.location_id === 'yangzhou' || p.location_id === 'guangling')) return true;
+    if (city.id === 'chengdu' && p.location_id === 'chengdu') return true;
+    if (city.id === 'jinan' && p.location_id === 'jinan') return true;
+    if (city.id === 'bianjing' && p.location_id === 'bianjing') return true;
+    if (city.id === 'linan' && p.location_id === 'linan') return true;
+    if (city.id === 'jinling' && p.location_id === 'jinling') return true;
+    if (city.id === 'taishan' && p.location_id === 'taishan') return true;
+    return false;
+  });
 
   // 意境横幅视觉渐变
   const getBannerGradient = () => {
@@ -106,6 +132,66 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
             </div>
           </div>
 
+          {/* ✦ 当令文心 · 传世绝唱 (快捷研学复习入口 TODO-POL-02) */}
+          {matchingPoems.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-teal-500/10 border border-amber-500/30 space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-poetry text-amber-900 flex items-center space-x-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+                  <span>【当令文心 · 传世名篇】</span>
+                </span>
+                <span className="text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full font-poetry border border-amber-300/50">
+                  收录 {matchingPoems.length} 篇
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {matchingPoems.map((poem) => {
+                  const isUnlocked = unlockedPoemIds?.includes(poem.id);
+                  return (
+                    <div
+                      key={poem.id}
+                      className="p-3 bg-white rounded-xl border border-amber-200/80 shadow-xs flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-xs text-slate-900 font-poetry truncate">
+                            《{poem.title}》
+                          </span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded-full font-medium ${
+                              isUnlocked
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-amber-100 text-amber-800 border border-amber-300'
+                            }`}
+                          >
+                            {isUnlocked ? '已收录' : '待感悟'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-poetry truncate mt-1">
+                          “{poem.lines[0]?.text}”
+                        </p>
+                      </div>
+
+                      {onSelectPoemForPlay && (
+                        <button
+                          onClick={() => {
+                            onSelectPoemForPlay(poem);
+                            onClose();
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-poetry font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center space-x-1 cursor-pointer"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>{isUnlocked ? '重温诗作' : '研悟创作'}</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 纯当前朝代的人文历史风貌 */}
           <div className="space-y-1.5">
             <h4 className="text-xs font-bold text-emerald-900 flex items-center space-x-1.5">
@@ -184,12 +270,26 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
           </div>
 
           {isCurrentLocation ? (
-            <button
-              onClick={onClose}
-              className="px-5 py-2 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300"
-            >
-              已身在城中
-            </button>
+            <div className="flex items-center space-x-2">
+              {matchingPoems.length > 0 && onSelectPoemForPlay && (
+                <button
+                  onClick={() => {
+                    onSelectPoemForPlay(matchingPoems[0]);
+                    onClose();
+                  }}
+                  className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold font-poetry shadow-sm flex items-center space-x-1.5 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                  <span>研习《{matchingPoems[0].title}》</span>
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="px-5 py-2 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300 cursor-pointer"
+              >
+                已身在城中
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => {

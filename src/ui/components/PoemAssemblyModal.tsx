@@ -17,7 +17,10 @@ import {
   Lightbulb,
   Send,
   RefreshCw,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import { soundEngine } from '../../engine/audio/soundEngine';
 
 interface PoemAssemblyModalProps {
   poem: PoemData;
@@ -237,6 +240,48 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   // 动态墨润动画状态 (行逐行显现)
   const [renderedLineCount, setRenderedLineCount] = useState<number>(0);
 
+  // 古韵吟诵状态 (TODO-REC-01/02)
+  const [isReciting, setIsReciting] = useState<boolean>(false);
+  const [recitingLineIdx, setRecitingLineIdx] = useState<number | null>(null);
+
+  // 停止朗诵
+  const handleStopReciting = () => {
+    soundEngine.stopPoemSpeech();
+    setIsReciting(false);
+    setRecitingLineIdx(null);
+  };
+
+  // 切换朗诵
+  const handleToggleReciting = () => {
+    if (isReciting) {
+      handleStopReciting();
+    } else {
+      setIsReciting(true);
+      soundEngine.speakPoem(
+        poem.title,
+        poem.lines.map((l) => l.text),
+        {
+          poetDynasty: poem.dynasty,
+          poetId: poem.poet_id,
+          onLineStart: (idx) => {
+            setRecitingLineIdx(idx);
+          },
+          onEnd: () => {
+            setIsReciting(false);
+            setRecitingLineIdx(null);
+          },
+        }
+      );
+    }
+  };
+
+  // 离开页面或切换诗篇时停止朗诵
+  useEffect(() => {
+    return () => {
+      soundEngine.stopPoemSpeech();
+    };
+  }, [poem.id]);
+
   // 重点词交互聚焦
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null);
 
@@ -310,10 +355,12 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   // 推敲选项选择
   const handleOptionSelect = (option: string) => {
     if (!currentLine || isFinished || isAnswerCorrect === true) return;
+    soundEngine.playInkDab();
     setSelectedWord(option);
     const correct = currentLine.correct;
 
     if (option === correct) {
+      soundEngine.playJadeChime(659.25);
       setIsAnswerCorrect(true);
       setWrongExplanation(null);
 
@@ -324,6 +371,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
         `“${correct}”字切中诗心，神完气足，极尽自然造化之妙。`;
       setCorrectExplanation(explanation);
     } else {
+      soundEngine.playInkDab();
       setIsAnswerCorrect(false);
       setCorrectExplanation(null);
       const newErrors = errorCount + 1;
@@ -543,6 +591,29 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
             </button>
           </div>
 
+          {/* 古韵吟诵按钮 (TODO-REC-01/02) */}
+          <button
+            onClick={handleToggleReciting}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs transition-all font-poetry border cursor-pointer ${
+              isReciting
+                ? 'bg-amber-600 text-white border-amber-300 font-bold shadow-md animate-pulse'
+                : 'bg-theme-surface hover:bg-theme-surface-card text-theme-text-muted hover:text-theme-text border-theme-border'
+            }`}
+            title={isReciting ? '点击暂停诵读' : '聆听名家古韵诵读'}
+          >
+            {isReciting ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-amber-200" />
+                <span>暂停诵读</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-theme-primary" />
+                <span>✦ 聆听古韵</span>
+              </>
+            )}
+          </button>
+
           {/* 小屏专属：切换【诗卷】与【解析】标签 */}
           <div className="flex lg:hidden items-center bg-theme-surface rounded-full p-0.5 border border-theme-border">
             <button
@@ -565,8 +636,11 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
 
           {/* 右侧：关闭按钮 */}
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-theme-surface hover:bg-theme-surface-card text-theme-text-muted hover:text-theme-text border border-theme-border flex items-center justify-center transition-all shadow-xs"
+            onClick={() => {
+              handleStopReciting();
+              onClose();
+            }}
+            className="w-8 h-8 rounded-full bg-theme-surface hover:bg-theme-surface-card text-theme-text-muted hover:text-theme-text border border-theme-border flex items-center justify-center transition-all shadow-xs cursor-pointer"
             title="关闭弹窗"
           >
             <X className="w-4 h-4" />
@@ -612,7 +686,9 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                     return (
                       <div
                         key={idx}
-                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
+                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-500 overflow-x-auto no-scrollbar py-0.5 px-2 rounded-2xl ${
+                          recitingLineIdx === idx ? 'bg-amber-500/15 ring-2 ring-amber-400 shadow-sm scale-[1.02]' : ''
+                        } ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 blur-[2px]'
                         }`}
                       >
@@ -646,7 +722,9 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                       return (
                         <div
                           key={idx}
-                          className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
+                          className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-500 overflow-x-auto no-scrollbar py-0.5 px-2 rounded-2xl ${
+                            recitingLineIdx === idx ? 'bg-amber-500/15 ring-2 ring-amber-400 shadow-sm scale-[1.02]' : ''
+                          } ${
                             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                           }`}
                         >
@@ -674,7 +752,9 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
                       <div
                         key={idx}
                         ref={isCurrentQuestion ? activeBlankRef : null}
-                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-700 overflow-x-auto no-scrollbar ${
+                        className={`w-full max-w-full flex items-center justify-center ${scale.containerGap} transition-all duration-500 overflow-x-auto no-scrollbar py-0.5 px-2 rounded-2xl ${
+                          recitingLineIdx === idx ? 'bg-amber-500/15 ring-2 ring-amber-400 shadow-sm scale-[1.02]' : ''
+                        } ${
                           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
                         }`}
                       >
