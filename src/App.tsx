@@ -14,6 +14,7 @@ import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
 import { TravelPassportModal } from './ui/components/TravelPassportModal';
 import { SaveBackupModal } from './ui/components/SaveBackupModal';
 import { UserProfileModal } from './ui/components/UserProfileModal';
+import { INITIAL_USER_ACCOUNTS, UserAccount } from './types/userStudio';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
   const [isPassportModalOpen, setIsPassportModalOpen] = useState<boolean>(false);
   const [isSaveBackupOpen, setIsSaveBackupOpen] = useState<boolean>(false);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<UserAccount>(INITIAL_USER_ACCOUNTS[0]);
 
   // 快捷触发当前地点的诗词创作
   const handleTriggerCurrentLocationPoem = () => {
@@ -123,6 +125,32 @@ export const App: React.FC = () => {
             setIsOnHomePage(false);
           }}
           onOpenCollection={() => setIsCollectionOpen(true)}
+          onOpenUserProfile={() => setIsProfileOpen(true)}
+          userPenName={currentUser.penName}
+          userRank={currentUser.rankTitle}
+        />
+
+        {/* 文人书斋 · 个人档案中心 (包含登录/切换雅号与多槽位存档) */}
+        <UserProfileModal
+          isOpen={isProfileOpen}
+          currentUser={currentUser}
+          onSelectUser={(u) => setCurrentUser(u)}
+          onClose={() => setIsProfileOpen(false)}
+          onRetryPoem={(poemId) => {
+            const targetPoem = activePack.poems.find((p) => p.id === poemId);
+            if (targetPoem) {
+              setIsProfileOpen(false);
+              setIsOnHomePage(false);
+              setActivePoemToAssemble(targetPoem);
+            }
+          }}
+          onLoadSlot={(slot) => {
+            if (slot.poetId !== currentPoetId) {
+              switchPoet(slot.poetId);
+            }
+            setIsProfileOpen(false);
+            setIsOnHomePage(false);
+          }}
         />
 
         {/* 典藏阁弹窗 */}
@@ -194,7 +222,6 @@ export const App: React.FC = () => {
           setIsCollectionOpen(true);
         }}
         onOpenSaveBackup={() => setIsSaveBackupOpen(true)}
-        onOpenUserProfile={() => setIsProfileOpen(true)}
         onOpenCollection={() => {
           setCollectionInitialView('poems');
           setIsCollectionOpen(true);
@@ -532,12 +559,20 @@ export const App: React.FC = () => {
       {/* 14. 文人书斋 · 雅士名牌、山河谱牒、推敲朱卷与文心墨札中心 (Demo) */}
       <UserProfileModal
         isOpen={isProfileOpen}
+        currentUser={currentUser}
+        onSelectUser={(u) => setCurrentUser(u)}
         onClose={() => setIsProfileOpen(false)}
         onRetryPoem={(poemId) => {
           const targetPoem = activePack.poems.find((p) => p.id === poemId);
           if (targetPoem) {
             setActivePoemToAssemble(targetPoem);
           }
+        }}
+        onLoadSlot={(slot) => {
+          if (slot.poetId !== currentPoetId) {
+            switchPoet(slot.poetId);
+          }
+          setIsProfileOpen(false);
         }}
       />
     </div>
