@@ -9,7 +9,6 @@ import { CollectionModal } from './ui/components/CollectionModal';
 import { LifeChoiceModal } from './ui/components/LifeChoiceModal';
 import { CrisisModal } from './ui/components/CrisisModal';
 import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
-import { PoetSwitchModal } from './ui/components/PoetSwitchModal';
 import { PoetHomePage } from './ui/components/PoetHomePage';
 import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
 import { TravelPassportModal } from './ui/components/TravelPassportModal';
@@ -63,7 +62,6 @@ export const App: React.FC = () => {
   } = useGameStore();
 
   const [activeEventNotice, setActiveEventNotice] = useState<GameEvent | null>(null);
-  const [isPoetSwitchOpen, setIsPoetSwitchOpen] = useState<boolean>(false);
   const [isOnHomePage, setIsOnHomePage] = useState<boolean>(true);
   const [collectionInitialView, setCollectionInitialView] = useState<'poems' | 'artifacts'>('poems');
   const [isPassportModalOpen, setIsPassportModalOpen] = useState<boolean>(false);
@@ -198,7 +196,6 @@ export const App: React.FC = () => {
           setCollectionInitialView('poems');
           setIsCollectionOpen(true);
         }}
-        onOpenPoetSwitch={() => setIsPoetSwitchOpen(true)}
         onBackToHome={() => setIsOnHomePage(true)}
       />
 
@@ -483,28 +480,11 @@ export const App: React.FC = () => {
             setActiveRetrospective(null);
             resetPoetJourney();
           }}
-          onOpenPoetSwitch={() => {
-            setActiveRetrospective(null);
-            setIsPoetSwitchOpen(true);
-          }}
-          onClose={() => setActiveRetrospective(null)}
-        />
-      )}
-
-      {/* 10. 历代千古文宗 · 诗词长卷切换弹窗 (Poet Switch) */}
-      {isPoetSwitchOpen && (
-        <PoetSwitchModal
-          currentPoetId={currentPoetId}
-          availablePoets={AVAILABLE_POETS}
-          onSelectPoet={(poetId) => {
-            switchPoet(poetId);
-            setIsPoetSwitchOpen(false);
-          }}
           onBackToHome={() => {
-            setIsPoetSwitchOpen(false);
+            setActiveRetrospective(null);
             setIsOnHomePage(true);
           }}
-          onClose={() => setIsPoetSwitchOpen(false)}
+          onClose={() => setActiveRetrospective(null)}
         />
       )}
 

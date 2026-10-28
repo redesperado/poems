@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PoetData } from '../../types/poet';
 import { LocationData } from '../../types/location';
-import { Palette, BookOpen, Compass, ChevronDown, Check, Sparkles, ScrollText } from 'lucide-react';
+import { Palette, BookOpen, Compass, ChevronDown, Check, ScrollText } from 'lucide-react';
 
 interface HeaderNavProps {
   poet: PoetData;
@@ -13,7 +13,6 @@ interface HeaderNavProps {
   unlockedCount: number;
   totalCount: number;
   onOpenCollection: () => void;
-  onOpenPoetSwitch?: () => void;
   onBackToHome?: () => void;
   artifactCount?: number;
   onOpenArtifacts?: () => void;
@@ -30,7 +29,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   unlockedCount,
   totalCount,
   onOpenCollection,
-  onOpenPoetSwitch,
   onBackToHome,
   artifactCount,
   onOpenArtifacts,
@@ -82,11 +80,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     <header className="w-full px-4 py-3 bg-theme-surface/85 backdrop-blur-md border-b border-theme-border flex items-center justify-between shadow-card-soft transition-colors duration-300 z-30">
       {/* 左侧：诗人状态（海棠形头像）与年份地点 */}
       <div className="flex items-center space-x-3">
-        {/* 唐代海棠形头像底座 (支持点击打开文人长卷) */}
+        {/* 唐代海棠形头像底座 (支持点击返回长卷首页) */}
         <div
-          onClick={onOpenPoetSwitch}
+          onClick={onBackToHome}
           className="relative group cursor-pointer transition-transform active:scale-95"
-          title="点击打开历代文人长卷"
+          title="点击返回长卷首页，选择朝代与文人"
         >
           <div className="w-12 h-12 bg-gradient-to-br from-spring-emerald via-spring-celadon to-spring-gold p-[2px] shape-begonia flex items-center justify-center shadow-jade-glow group-hover:shadow-gold-glow">
             <div className="w-full h-full bg-theme-surface-card shape-begonia flex items-center justify-center text-theme-primary font-bold text-base font-poetry group-hover:text-theme-gold transition-colors">
@@ -141,16 +139,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             <span className="font-medium">首页</span>
           </button>
         )}
-
-        {/* 文人长卷切换入口 */}
-        <button
-          onClick={onOpenPoetSwitch}
-          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-full border border-theme-border bg-theme-surface-card hover:border-theme-border-highlight text-theme-text text-xs transition-all active:scale-95 cursor-pointer font-poetry shadow-2xs"
-          title="切换体验其他唐宋文宗"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-theme-gold" />
-          <span className="font-medium">文人</span>
-        </button>
 
         {/* 离线存档备份与导入入口 (TODO-POL-05) */}
         {onOpenSaveBackup && (
