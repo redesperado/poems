@@ -599,7 +599,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/65 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/65 backdrop-blur-md animate-in fade-in select-none">
       {/* 展馆级主模态框 (双联屏长卷设计，严格遵循主题变量) */}
       <div className="relative w-full max-w-6xl bg-theme-surface-card border border-theme-border rounded-[2rem] shadow-2xl flex flex-col h-[92vh] max-h-[900px] overflow-hidden text-theme-text">
         

@@ -88,7 +88,7 @@ export const CityDetailModal: React.FC<CityDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-md animate-in fade-in">
       <div className="relative w-full max-w-xl bg-white/98 backdrop-blur-2xl border border-slate-300 rounded-[2rem] shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden text-slate-900">
         {/* 1. 顶部特色山水意境横幅 */}
         <div

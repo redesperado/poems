@@ -337,7 +337,7 @@ export const App: React.FC = () => {
 
       {/* 8. 时间轴事件详情与交互弹窗 */}
       {activeEventNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md bg-theme-surface-card border-2 border-theme-border rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-theme-border/50 pb-3">
               <div className="flex items-center space-x-2">

@@ -28,7 +28,7 @@ export const LifeChoiceModal: React.FC<LifeChoiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in">
       <div className="relative w-full max-w-lg bg-theme-surface-card/95 backdrop-blur-2xl border border-theme-border rounded-[2rem] p-6 shadow-2xl flex flex-col max-h-[92dvh] overflow-y-auto no-scrollbar">
         {/* 顶部月门微弧装饰与标题 */}
         <div className="text-center pb-4 border-b border-theme-border/60">

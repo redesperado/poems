@@ -64,7 +64,7 @@ export const PoetEncounterModal: React.FC<PoetEncounterModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
       <div className="relative w-full max-w-4xl max-h-[92vh] bg-theme-surface-card border-2 border-amber-500/50 rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col space-y-4 overflow-hidden text-theme-text">
         {/* 背景金辉与水墨微芒 */}
         <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-transparent to-theme-primary/10 pointer-events-none" />

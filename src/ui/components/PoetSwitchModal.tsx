@@ -19,7 +19,7 @@ export const PoetSwitchModal: React.FC<PoetSwitchModalProps> = ({
   onClose,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-in fade-in select-none">
       <div className="relative w-full max-w-4xl max-h-[90vh] bg-theme-surface-card border-2 border-theme-border rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col space-y-4 overflow-hidden">
         {/* 顶部标题栏 */}
         <div className="flex items-center justify-between pb-3 border-b border-theme-border/60 shrink-0">

@@ -57,7 +57,7 @@ export const SaveBackupModal: React.FC<SaveBackupModalProps> = ({ onClose, onRef
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in select-none">
       <div className="relative w-full max-w-md bg-theme-canvas border-2 border-theme-border rounded-3xl shadow-2xl p-6 text-theme-text space-y-4">
         {/* 标题栏 */}
         <div className="flex items-center justify-between border-b border-theme-border pb-3">

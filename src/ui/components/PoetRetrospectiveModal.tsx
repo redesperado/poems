@@ -43,7 +43,7 @@ export const PoetRetrospectiveModal: React.FC<PoetRetrospectiveModalProps> = ({
   const [selectedCriticIdx, setSelectedCriticIdx] = useState<number>(0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
       <div className="relative w-full max-w-4xl max-h-[92vh] bg-stone-900/95 border-2 border-amber-500/60 rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 flex flex-col space-y-4 overflow-hidden">
         {/* 背景金辉与水墨微芒 */}
         <div className="absolute inset-0 bg-gradient-to-b from-amber-950/30 via-transparent to-stone-950/80 pointer-events-none" />

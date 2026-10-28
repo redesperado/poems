@@ -89,7 +89,7 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
   const completionPercentage = Math.round((unlockedPoemIds.length / poems.length) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in">
       <div className="relative w-full max-w-5xl bg-theme-canvas border-2 border-theme-border rounded-3xl shadow-2xl flex flex-col h-[90dvh] max-h-[820px] overflow-hidden text-theme-text">
         {/* ============================================================== */}
         {/* 1. 顶部典藏大阁横幅 (Header)                                     */}

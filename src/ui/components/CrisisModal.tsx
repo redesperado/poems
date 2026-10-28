@@ -23,7 +23,7 @@ export const CrisisModal: React.FC<CrisisModalProps> = ({
   onConfirm,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-in fade-in">
       <div className="relative w-full max-w-2xl max-h-[90vh] bg-stone-900/95 border-2 border-amber-600/60 rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 flex flex-col space-y-4 overflow-hidden">
         {/* 背景战火与山河微光纹理 */}
         <div className="absolute inset-0 bg-gradient-to-b from-red-950/40 via-transparent to-stone-950/80 pointer-events-none" />

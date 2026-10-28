@@ -375,7 +375,7 @@ export const TravelPassportModal: React.FC<TravelPassportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in select-none">
       <div className="relative w-full max-w-2xl max-h-[94vh] bg-stone-900 border-2 border-amber-500/60 rounded-3xl shadow-2xl text-stone-100 flex flex-col overflow-hidden">
         {/* 顶部控制栏 */}
         <div className="px-5 py-3.5 border-b border-amber-500/30 bg-stone-950/80 flex items-center justify-between shrink-0">

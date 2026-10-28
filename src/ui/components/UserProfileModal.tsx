@@ -211,7 +211,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     selectedTag === 'all' ? notes : notes.filter((n) => n.tags.includes(selectedTag));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md animate-fadeIn">
       {/* 主展台容器：彻底契合全局主题背景与文字变量 */}
       <div className="relative w-full max-w-5xl h-[88vh] max-h-[820px] bg-theme-canvas border border-theme-border rounded-2xl shadow-2xl overflow-hidden flex flex-col font-poetry text-theme-text transition-colors duration-300">
         {/* 顶部标题栏 */}
@@ -926,7 +926,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       {/* 墨宝书签卡生成预览模态 (Demo) */}
       {bookmarkPreviewNote && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
           <div className="relative w-full max-w-sm bg-[#fcf8ee] text-stone-900 border-4 border-amber-950/70 rounded-2xl shadow-2xl p-6 font-poetry flex flex-col items-center">
             <button
               onClick={() => setBookmarkPreviewNote(null)}
