@@ -28,28 +28,7 @@ import {
   INITIAL_STUDY_RECORDS,
   INITIAL_POETRY_NOTES,
 } from '../../types/userStudio';
-
-/**
- * 传统文人方印四字规制转换器：
- * 遵循中国传统金石篆刻右起纵排、四字对称之印律
- * 例如："三尚" -> "三尚之印", "青莲墨客" -> "青莲墨客", "东坡客" -> "东坡客印"
- */
-function getSealCharacters(penName: string): [string, string, string, string] {
-  const clean = penName.replace(/[^\u4e00-\u9fa5]/g, '');
-  if (clean.length === 2) {
-    return [clean[0], clean[1], '之', '印'];
-  }
-  if (clean.length === 3) {
-    return [clean[0], clean[1], clean[2], '印'];
-  }
-  if (clean.length >= 4) {
-    return [clean[0], clean[1], clean[2], clean[3]];
-  }
-  if (clean.length === 1) {
-    return [clean[0], '氏', '之', '印'];
-  }
-  return ['雅', '士', '之', '印'];
-}
+import { StoneSealStamp } from './StoneSealStamp';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -76,7 +55,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     propUser || INITIAL_USER_ACCOUNTS[0]
   );
   const currentUser = propUser || localCurrentUser;
-  const sealChars = getSealCharacters(currentUser.penName);
 
   const [isSwitchingUser, setIsSwitchingUser] = useState(false);
   const [newPenName, setNewPenName] = useState('');
@@ -388,28 +366,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
                 </div>
 
-                {/* 传统金石阳刻朱砂名印 (右读纵排，纯正钤印，杜绝嵌套线框) */}
-                <div className="shrink-0 flex flex-col items-center justify-center select-none z-10">
-                  <div
-                    className="p-2.5 border-2 border-red-700/85 rounded-[3px] bg-red-700/[0.04] shadow-[0_2px_8px_-1px_rgba(185,28,28,0.22)] -rotate-1 hover:rotate-0 transition-transform duration-300"
-                    title={`${currentUser.penName} · 专属朱砂名章`}
-                  >
-                    {/* 2x2 古印规制：右列（首字、次字），左列（三字、末字） */}
-                    <div className="flex flex-row-reverse gap-1.5 font-serif font-black text-red-700/95 text-base sm:text-lg leading-none tracking-widest">
-                      <div className="flex flex-col space-y-1 text-center">
-                        <span>{sealChars[0]}</span>
-                        <span>{sealChars[1]}</span>
-                      </div>
-                      <div className="flex flex-col space-y-1 text-center">
-                        <span>{sealChars[2]}</span>
-                        <span>{sealChars[3]}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-red-800/70 font-poetry tracking-widest mt-1.5 select-none font-medium">
-                    文墨印信
-                  </span>
-                </div>
+                {/* 汉唐宋印 · 金石石刻名印 (当朝篆字、金石崩边、刀痕与朱砂矿物拓印效果，支持阴阳刻点击切换) */}
+                <StoneSealStamp
+                  penName={currentUser.penName}
+                  size="md"
+                  defaultMode="yin"
+                  className="shrink-0 z-10"
+                />
               </div>
 
               {/* 统计指标网格 */}
@@ -964,21 +927,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
             <div className="w-full flex items-center justify-between text-[11px] text-stone-600 border-t border-stone-300 pt-3">
               <span>雅士：{currentUser.penName}</span>
-              <div
-                className="p-1 border-[1.5px] border-red-800/90 rounded-[2px] bg-red-800/[0.04] text-red-800 font-serif font-black text-[9px] select-none -rotate-1"
-                title={`${currentUser.penName} 钤印`}
-              >
-                <div className="flex flex-row-reverse gap-0.5 leading-none">
-                  <div className="flex flex-col space-y-0.5 text-center">
-                    <span>{sealChars[0]}</span>
-                    <span>{sealChars[1]}</span>
-                  </div>
-                  <div className="flex flex-col space-y-0.5 text-center">
-                    <span>{sealChars[2]}</span>
-                    <span>{sealChars[3]}</span>
-                  </div>
-                </div>
-              </div>
+              <StoneSealStamp
+                penName={currentUser.penName}
+                size="sm"
+                defaultMode="yin"
+                showCaption={false}
+                interactive={false}
+              />
             </div>
 
             <button
