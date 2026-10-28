@@ -1,0 +1,22 @@
+[package]
+name = "poetry-server"
+version = "0.1.0"
+edition = "2021"
+authors = ["redesperado <redesperado@users.noreply.github.com>"]
+description = "High-performance Rust backend for Tang-Song Poetry Game"
+
+[dependencies]
+axum = { version = "0.7", features = ["json", "macros"] }
+tokio = { version = "1.37", features = ["full"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
+anyhow = "1.0"
+thiserror = "1.0"

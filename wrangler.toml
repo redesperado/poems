@@ -1,0 +1,20 @@
+# ==============================================================================
+# Cloudflare 配置文件: 唐宋山河诗境
+# 包含 Cloudflare Pages (前端) 与 Cloudflare Workers/Hyperdrive (后端) 设定
+# ==============================================================================
+
+name = "tang-song-poems"
+compatibility_date = "2024-04-01"
+
+# 1. 前端静态产物 (Cloudflare Pages 绑定)
+pages_build_output_dir = "dist"
+
+# 2. 生产环境配置
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+# 3. Cloudflare Hyperdrive 配置 (加速边缘端至 PostgreSQL 的连接池)
+# 当使用 Cloudflare Workers + 远程 Postgres (如 Neon/Supabase) 时启用:
+# [[env.production.hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<your-hyperdrive-id>"
