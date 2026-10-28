@@ -335,7 +335,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="space-y-6 max-w-4xl mx-auto animate-fadeIn">
               {/* 核心身分卡：采用主题卡片背景与高对比度文字 */}
               <div className="p-6 rounded-2xl bg-theme-surface-card border border-theme-border shadow-card-soft flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-                <div className="absolute right-4 -bottom-6 text-theme-primary/5 text-9xl font-poetry font-black select-none pointer-events-none">
+                {/* 雅致背景暗纹微水印：完全不裁断、4%极淡透明度、不干扰前景文字与红印 */}
+                <div
+                  className="absolute right-20 sm:right-28 top-1/2 -translate-y-1/2 text-7xl sm:text-8xl font-poetry font-bold select-none pointer-events-none leading-none z-0 text-theme-text opacity-[0.04]"
+                  aria-hidden="true"
+                >
                   墨
                 </div>
                 <div className="flex items-center space-x-5 z-10">
