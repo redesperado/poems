@@ -23,6 +23,10 @@ export const LI_BAI: PoetData = {
   start_event_id: 'li_bai_youth_sichuan',
   theme_color: '#10B981',
   preferred_theme_id: 'spring',
+  avatar_image: '/images/poets/li_bai.jpg',
+  famous_quote: '天生我材必有用，千金散尽还复来',
+  representative_poems: ['将进酒', '蜀道难', '静夜思', '望庐山瀑布'],
+  brief_intro: '盛唐浪漫主义的至高化身，仗剑出蜀，斗酒百篇，绣口一吐便是半个盛唐。',
 };
 
 export { LI_BAI_POEMS, LI_BAI_EVENTS, LI_BAI_CHOICES };

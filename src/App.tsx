@@ -10,6 +10,7 @@ import { LifeChoiceModal } from './ui/components/LifeChoiceModal';
 import { CrisisModal } from './ui/components/CrisisModal';
 import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
 import { PoetSwitchModal } from './ui/components/PoetSwitchModal';
+import { PoetHomePage } from './ui/components/PoetHomePage';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
@@ -53,6 +54,7 @@ export const App: React.FC = () => {
 
   const [activeEventNotice, setActiveEventNotice] = useState<GameEvent | null>(null);
   const [isPoetSwitchOpen, setIsPoetSwitchOpen] = useState<boolean>(false);
+  const [isOnHomePage, setIsOnHomePage] = useState<boolean>(true);
 
   // 快捷触发当前地点的诗词创作
   const handleTriggerCurrentLocationPoem = () => {
@@ -90,6 +92,43 @@ export const App: React.FC = () => {
     );
   }
 
+  // 首页：朝代与文人长卷挑选
+  if (isOnHomePage) {
+    return (
+      <>
+        <PoetHomePage
+          poets={AVAILABLE_POETS}
+          currentPoetId={currentPoetId}
+          currentTheme={currentTheme}
+          onThemeChange={switchTheme}
+          onStartJourney={(poetId) => {
+            if (poetId !== currentPoetId) {
+              switchPoet(poetId);
+            }
+            setIsOnHomePage(false);
+          }}
+          onOpenCollection={() => setIsCollectionOpen(true)}
+        />
+
+        {/* 典藏阁弹窗 */}
+        {isCollectionOpen && (
+          <CollectionModal
+            poet={currentPoet}
+            poems={activePack.poems}
+            unlockedPoemIds={unlockedPoemIds}
+            poemScores={poemScores}
+            onClose={() => setIsCollectionOpen(false)}
+            onSelectPoemForPlay={(poem) => {
+              setIsCollectionOpen(false);
+              setIsOnHomePage(false);
+              setActivePoemToAssemble(poem);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   const currentHasPoem = activePack.poems.some(
     (p) => p.location_id === currentLocation.id
   );
@@ -111,6 +150,7 @@ export const App: React.FC = () => {
         totalCount={activePack.poems.length}
         onOpenCollection={() => setIsCollectionOpen(true)}
         onOpenPoetSwitch={() => setIsPoetSwitchOpen(true)}
+        onBackToHome={() => setIsOnHomePage(true)}
       />
 
       {/* 2. 主场景：地图游历与右侧悬浮 5 维情绪仪表 */}
@@ -382,6 +422,10 @@ export const App: React.FC = () => {
           onSelectPoet={(poetId) => {
             switchPoet(poetId);
             setIsPoetSwitchOpen(false);
+          }}
+          onBackToHome={() => {
+            setIsPoetSwitchOpen(false);
+            setIsOnHomePage(true);
           }}
           onClose={() => setIsPoetSwitchOpen(false)}
         />

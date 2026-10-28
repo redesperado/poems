@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PoetData } from '../../types/poet';
 import { LocationData } from '../../types/location';
-import { Palette, BookOpen, Compass, ChevronDown, Check, Sparkles } from 'lucide-react';
+import { Palette, BookOpen, Compass, ChevronDown, Check, Sparkles, ScrollText } from 'lucide-react';
 
 interface HeaderNavProps {
   poet: PoetData;
@@ -14,6 +14,7 @@ interface HeaderNavProps {
   totalCount: number;
   onOpenCollection: () => void;
   onOpenPoetSwitch?: () => void;
+  onBackToHome?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -27,6 +28,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   totalCount,
   onOpenCollection,
   onOpenPoetSwitch,
+  onBackToHome,
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -120,8 +122,20 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         </div>
       </div>
 
-      {/* 右侧：文人长卷入口、主题切换器、典藏阁入口 */}
+      {/* 右侧：返回首页、文人长卷入口、主题切换器、典藏阁入口 */}
       <div className="flex items-center space-x-2 sm:space-x-2.5">
+        {/* 返回长卷首页按键 */}
+        {onBackToHome && (
+          <button
+            onClick={onBackToHome}
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-full border border-theme-border bg-theme-surface-card hover:border-theme-border-highlight text-theme-text text-xs transition-all active:scale-95 cursor-pointer font-poetry shadow-2xs"
+            title="返回长卷首页，选择朝代与文人"
+          >
+            <ScrollText className="w-3.5 h-3.5 text-theme-primary" />
+            <span className="font-medium">首页</span>
+          </button>
+        )}
+
         {/* 文人长卷切换入口 */}
         <button
           onClick={onOpenPoetSwitch}

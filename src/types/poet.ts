@@ -15,4 +15,8 @@ export interface PoetData {
   start_event_id: string;
   theme_color: string;
   preferred_theme_id?: string;
+  avatar_image?: string;         // 诗人立绘画像路径
+  famous_quote?: string;         // 标志性传世名句
+  representative_poems?: string[]; // 代表作品篇目
+  brief_intro?: string;          // 首页少量核心精炼介绍
 }

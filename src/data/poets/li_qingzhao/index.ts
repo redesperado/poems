@@ -24,6 +24,10 @@ export const LI_QINGZHAO: PoetData = {
   start_event_id: 'lqz_youth_1100',
   theme_color: '#EC4899',
   preferred_theme_id: 'song-celadon',
+  avatar_image: '/images/poets/li_qingzhao.svg',
+  famous_quote: '生当作人杰，死亦为鬼雄',
+  representative_poems: ['如梦令', '一剪梅', '声声慢', '夏日绝句'],
+  brief_intro: '宋代婉约词宗、千古第一才女，前承汴京泼茶清欢，后载南渡沉郁家国。',
 };
 
 export { LI_QINGZHAO_POEMS, LI_QINGZHAO_EVENTS, LI_QINGZHAO_CHOICES };

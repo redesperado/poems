@@ -24,6 +24,10 @@ export const DU_FU: PoetData = {
   start_event_id: 'du_fu_youth_736',
   theme_color: '#B45309',
   preferred_theme_id: 'tang-ink',
+  avatar_image: '/images/poets/du_fu.svg',
+  famous_quote: '安得广厦千万间，大庇天下寒士俱欢颜',
+  representative_poems: ['望岳', '春望', '茅屋为秋风所破歌', '登高'],
+  brief_intro: '集大成的万世诗圣，以沉郁顿挫之血泪史诗见证苍生黎庶，千古风骨如山。',
 };
 
 export { DU_FU_POEMS, DU_FU_EVENTS, DU_FU_CHOICES };

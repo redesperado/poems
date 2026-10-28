@@ -7,6 +7,7 @@ interface PoetSwitchModalProps {
   currentPoetId: string;
   availablePoets: PoetData[];
   onSelectPoet: (poetId: string) => void;
+  onBackToHome?: () => void;
   onClose: () => void;
 }
 
@@ -14,6 +15,7 @@ export const PoetSwitchModal: React.FC<PoetSwitchModalProps> = ({
   currentPoetId,
   availablePoets,
   onSelectPoet,
+  onBackToHome,
   onClose,
 }) => {
   return (
@@ -178,15 +180,25 @@ export const PoetSwitchModal: React.FC<PoetSwitchModalProps> = ({
           })}
         </div>
 
-        {/* 底部提示 */}
-        <div className="pt-2 border-t border-theme-border/50 flex items-center justify-between text-xs text-theme-text-muted">
+        {/* 底部提示与按键 */}
+        <div className="pt-2 border-t border-theme-border/50 flex flex-wrap items-center justify-between gap-2 text-xs text-theme-text-muted">
           <span>提示：切换文人将自动载入其所属朝代舆图、生平轨迹、专属作品与历史事件存档</span>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-full bg-theme-surface-card border border-theme-border hover:bg-black/5 dark:hover:bg-white/5 font-poetry text-xs font-bold text-theme-text cursor-pointer"
-          >
-            关闭长卷
-          </button>
+          <div className="flex items-center space-x-2">
+            {onBackToHome && (
+              <button
+                onClick={onBackToHome}
+                className="px-4 py-2 rounded-full bg-theme-primary/10 border border-theme-primary/30 text-theme-primary hover:bg-theme-primary hover:text-white font-poetry text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                返回长卷首页
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-5 py-2 rounded-full bg-theme-surface-card border border-theme-border hover:bg-black/5 dark:hover:bg-white/5 font-poetry text-xs font-bold text-theme-text cursor-pointer transition-all active:scale-95"
+            >
+              关闭长卷
+            </button>
+          </div>
         </div>
       </div>
     </div>
