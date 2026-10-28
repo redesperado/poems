@@ -29,6 +29,28 @@ import {
   INITIAL_POETRY_NOTES,
 } from '../../types/userStudio';
 
+/**
+ * 传统文人方印四字规制转换器：
+ * 遵循中国传统金石篆刻右起纵排、四字对称之印律
+ * 例如："三尚" -> "三尚之印", "青莲墨客" -> "青莲墨客", "东坡客" -> "东坡客印"
+ */
+function getSealCharacters(penName: string): [string, string, string, string] {
+  const clean = penName.replace(/[^\u4e00-\u9fa5]/g, '');
+  if (clean.length === 2) {
+    return [clean[0], clean[1], '之', '印'];
+  }
+  if (clean.length === 3) {
+    return [clean[0], clean[1], clean[2], '印'];
+  }
+  if (clean.length >= 4) {
+    return [clean[0], clean[1], clean[2], clean[3]];
+  }
+  if (clean.length === 1) {
+    return [clean[0], '氏', '之', '印'];
+  }
+  return ['雅', '士', '之', '印'];
+}
+
 interface UserProfileModalProps {
   isOpen: boolean;
   currentUser?: UserAccount;
@@ -54,6 +76,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     propUser || INITIAL_USER_ACCOUNTS[0]
   );
   const currentUser = propUser || localCurrentUser;
+  const sealChars = getSealCharacters(currentUser.penName);
 
   const [isSwitchingUser, setIsSwitchingUser] = useState(false);
   const [newPenName, setNewPenName] = useState('');
@@ -335,13 +358,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="space-y-6 max-w-4xl mx-auto animate-fadeIn">
               {/* 核心身分卡：采用主题卡片背景与高对比度文字 */}
               <div className="p-6 rounded-2xl bg-theme-surface-card border border-theme-border shadow-card-soft flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-                {/* 雅致背景暗纹微水印：完全不裁断、4%极淡透明度、不干扰前景文字与红印 */}
-                <div
-                  className="absolute right-20 sm:right-28 top-1/2 -translate-y-1/2 text-7xl sm:text-8xl font-poetry font-bold select-none pointer-events-none leading-none z-0 text-theme-text opacity-[0.04]"
-                  aria-hidden="true"
-                >
-                  墨
-                </div>
                 <div className="flex items-center space-x-5 z-10">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-theme-primary/20 via-theme-surface to-theme-primary/5 border-2 border-theme-primary/40 flex items-center justify-center shadow-md">
                     <span className="text-4xl text-theme-primary">{currentUser.avatarIcon}</span>
@@ -372,12 +388,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
                 </div>
 
-                {/* 朱砂方印：古典纯正朱砂红 */}
-                <div className="shrink-0 flex flex-col items-center justify-center p-3 border-2 border-red-700/80 rounded-xl bg-red-700/5 shadow-xs z-10">
-                  <div className="w-12 h-12 border border-red-700/80 rounded-lg flex items-center justify-center text-red-700 font-bold text-xs tracking-widest writing-vertical select-none font-serif">
-                    青莲之玺
+                {/* 传统金石阳刻朱砂名印 (右读纵排，纯正钤印，杜绝嵌套线框) */}
+                <div className="shrink-0 flex flex-col items-center justify-center select-none z-10">
+                  <div
+                    className="p-2.5 border-2 border-red-700/85 rounded-[3px] bg-red-700/[0.04] shadow-[0_2px_8px_-1px_rgba(185,28,28,0.22)] -rotate-1 hover:rotate-0 transition-transform duration-300"
+                    title={`${currentUser.penName} · 专属朱砂名章`}
+                  >
+                    {/* 2x2 古印规制：右列（首字、次字），左列（三字、末字） */}
+                    <div className="flex flex-row-reverse gap-1.5 font-serif font-black text-red-700/95 text-base sm:text-lg leading-none tracking-widest">
+                      <div className="flex flex-col space-y-1 text-center">
+                        <span>{sealChars[0]}</span>
+                        <span>{sealChars[1]}</span>
+                      </div>
+                      <div className="flex flex-col space-y-1 text-center">
+                        <span>{sealChars[2]}</span>
+                        <span>{sealChars[3]}</span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-red-700/90 font-bold mt-1">敕造研心朱印</span>
+                  <span className="text-[10px] text-red-800/70 font-poetry tracking-widest mt-1.5 select-none font-medium">
+                    文墨印信
+                  </span>
                 </div>
               </div>
 
@@ -933,8 +964,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
             <div className="w-full flex items-center justify-between text-[11px] text-stone-600 border-t border-stone-300 pt-3">
               <span>雅士：{currentUser.penName}</span>
-              <div className="w-8 h-8 border border-red-700 bg-red-800/10 rounded flex items-center justify-center text-red-700 font-bold text-[9px] select-none font-serif">
-                研墨
+              <div
+                className="p-1 border-[1.5px] border-red-800/90 rounded-[2px] bg-red-800/[0.04] text-red-800 font-serif font-black text-[9px] select-none -rotate-1"
+                title={`${currentUser.penName} 钤印`}
+              >
+                <div className="flex flex-row-reverse gap-0.5 leading-none">
+                  <div className="flex flex-col space-y-0.5 text-center">
+                    <span>{sealChars[0]}</span>
+                    <span>{sealChars[1]}</span>
+                  </div>
+                  <div className="flex flex-col space-y-0.5 text-center">
+                    <span>{sealChars[2]}</span>
+                    <span>{sealChars[3]}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
