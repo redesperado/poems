@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
@@ -29,6 +29,7 @@ import {
   INITIAL_POETRY_NOTES,
 } from '../../types/userStudio';
 import { StoneSealStamp } from './StoneSealStamp';
+import { apiClient } from '../../services/api/client';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [selectedSlotId, setSelectedSlotId] = useState<string>(INITIAL_SAVE_SLOTS[0].id);
 
   // 研学记录状态
-  const [studyRecords] = useState<PoemStudyRecord[]>(INITIAL_STUDY_RECORDS);
+  const [studyRecords, setStudyRecords] = useState<PoemStudyRecord[]>(INITIAL_STUDY_RECORDS);
   const [studyFilter, setStudyFilter] = useState<'all' | 'mistakes' | 'perfect'>('all');
 
   // 札记状态
@@ -76,38 +77,42 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [newNoteTag, setNewNoteTag] = useState('名句赏析');
   const [bookmarkPreviewNote, setBookmarkPreviewNote] = useState<PoetryNote | null>(null);
 
+  // 挂载或打开时从后端/本地拉取最新数据
+  useEffect(() => {
+    if (!isOpen) return;
+    apiClient.setUserId(currentUser.id);
+    apiClient.getSaves().then((data) => {
+      if (data && data.length > 0) setSlots(data);
+    });
+    apiClient.getStudyRecords().then((data) => {
+      if (data && data.length > 0) setStudyRecords(data);
+    });
+    apiClient.getNotes().then((data) => {
+      if (data && data.length > 0) setNotes(data);
+    });
+  }, [isOpen, currentUser.id]);
+
   if (!isOpen) return null;
 
   // 切换用户
   const handleSelectUser = (user: UserAccount) => {
+    apiClient.setUserId(user.id);
     setLocalCurrentUser(user);
     if (onSelectUser) {
       onSelectUser(user);
     }
     setIsSwitchingUser(false);
+    apiClient.getSaves().then(setSlots);
+    apiClient.getStudyRecords().then(setStudyRecords);
+    apiClient.getNotes().then(setNotes);
   };
 
   // 创建新用户
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPenName.trim()) return;
-    const newUser: UserAccount = {
-      id: `user_${Date.now()}`,
-      username: `walker_${Date.now().toString().slice(-4)}`,
-      penName: newPenName.trim(),
-      avatarIcon: '📜',
-      rankTitle: '童生初入',
-      level: 1,
-      exp: 100,
-      maxExp: 1000,
-      stats: {
-        travelYears: 1,
-        poemsStudied: 0,
-        artifactsCollected: 0,
-        notesCount: 0,
-      },
-      createdAt: '方才结契',
-    };
+    const username = `walker_${Date.now().toString().slice(-4)}`;
+    const newUser = await apiClient.register(username, newPenName.trim());
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     handleSelectUser(newUser);
@@ -130,7 +135,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   // 新建存档槽位
-  const handleCreateSlot = () => {
+  const handleCreateSlot = async () => {
     const newSlotNumber = slots.length + 1;
     const newSlot: JourneySaveSlot = {
       id: `slot_${Date.now()}`,
@@ -148,33 +153,49 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       journeyLogs: [{ year: 701, location: '蜀地', event: '大匡山初启剑侠长游' }],
     };
     setSlots([...slots, newSlot]);
+    await apiClient.saveSlot({
+      slotIndex: newSlotNumber,
+      slotName: newSlot.slotName,
+      poetId: newSlot.poetId,
+      currentYear: newSlot.currentYear,
+      currentLocationId: 'sichuan',
+      mood: { passion: 50, sorrow: 20, freedom: 50, anger: 10, homesickness: 20 },
+      journeyLogs: newSlot.journeyLogs,
+    });
   };
 
   // 删除存档
-  const handleDeleteSlot = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSlot = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (slots.length <= 1) {
       alert('至少保留一个游历存档槽位！');
       return;
     }
     setSlots(slots.filter((s) => s.id !== id));
+    await apiClient.deleteSave(id);
   };
 
   // 提交新札记
-  const handleSaveNewNote = (e: React.FormEvent) => {
+  const handleSaveNewNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNoteTitle.trim() || !newNoteContent.trim()) return;
-    const newNote: PoetryNote = {
-      id: `note_${Date.now()}`,
+    const newNote = await apiClient.createNote({
       title: newNoteTitle.trim(),
       content: newNoteContent.trim(),
       tags: [newNoteTag],
-      createdAtText: '刚刚题写',
-    };
+      locationName: '山河墨斋',
+    });
     setNotes([newNote, ...notes]);
     setNewNoteTitle('');
     setNewNoteContent('');
     setIsWritingNote(false);
+  };
+
+  // 删除札记
+  const handleDeleteNote = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNotes(notes.filter((n) => n.id !== id));
+    await apiClient.deleteNote(id);
   };
 
   // 研学记录过滤
@@ -868,7 +889,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-theme-border/60 flex justify-end">
+                    <div className="mt-4 pt-3 border-t border-theme-border/60 flex items-center justify-between">
+                      <button
+                        onClick={(e) => handleDeleteNote(note.id, e)}
+                        className="p-1.5 rounded-md hover:bg-red-500/10 text-theme-text-muted hover:text-red-500 transition-colors cursor-pointer"
+                        title="删除札记"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => setBookmarkPreviewNote(note)}
                         className="px-3.5 py-1.5 rounded-full bg-theme-surface border border-theme-border hover:border-theme-primary text-theme-text hover:text-theme-primary text-xs font-bold transition-all active:scale-95 flex items-center space-x-1.5 cursor-pointer shadow-xs"

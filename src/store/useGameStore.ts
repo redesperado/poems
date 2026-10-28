@@ -12,6 +12,7 @@ import { loadGameSave, persistGameSave, PlayerSaveRecord } from '../engine/save/
 import { ALL_ARTIFACTS, getCityArtifact, getPoetExclusiveArtifacts } from '../data/artifacts';
 import { ArtifactItem } from '../types/artifact';
 import { soundEngine } from '../engine/audio/soundEngine';
+import { apiClient } from '../services/api/client';
 
 export interface ActiveCrisisState {
   year: number;
@@ -447,8 +448,33 @@ export function useGameStore() {
         unlockedArtifactIds: nextArtifacts,
         updatedAt: Date.now(),
       });
+
+      // 异步同步到后端 PostgreSQL 数据库 (支持离线降级)
+      apiClient.submitStudyRecord({
+        poemId,
+        score,
+        grade: score >= 90 ? '甲等·妙品' : score >= 70 ? '乙等·通达' : '丙等·尚可',
+        durationSeconds: 45,
+        mistakes: [],
+        extraData: { poetName: currentPoet.name_cn, completedAtText: `${currentYear}年 · ${nextLoc.name_cn}` },
+      });
+
+      apiClient.saveSlot({
+        slotIndex: 1,
+        slotName: `【当朝】${currentPoet.name_cn}山河游历`,
+        poetId: currentPoet.id,
+        currentYear: nextYear,
+        currentLocationId: nextLoc.id,
+        mood: nextMood,
+        unlockedPoemIds: nextUnlocked,
+        poemScores: { ...poemScores, [poemId]: score },
+        completedEventIds: nextCompleted,
+        choicesMade,
+        unlockedBondIds,
+        unlockedArtifactIds: nextArtifacts,
+      });
     },
-    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme, unlockedBondIds, unlockedArtifactIds]
+    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, currentPoet.name_cn, poemScores, choicesMade, currentTheme, unlockedBondIds, unlockedArtifactIds]
   );
 
   // 触发终极生平总评
@@ -576,6 +602,21 @@ export function useGameStore() {
         unlockedBondIds,
         unlockedArtifactIds: nextArtifacts,
         updatedAt: Date.now(),
+      });
+
+      apiClient.saveSlot({
+        slotIndex: 1,
+        slotName: `【当朝】${currentPoet.name_cn}山河游历`,
+        poetId: currentPoet.id,
+        currentYear: currentYear,
+        currentLocationId: currentLocation.id,
+        mood: updatedMood,
+        unlockedPoemIds,
+        poemScores,
+        completedEventIds,
+        choicesMade,
+        unlockedBondIds,
+        unlockedArtifactIds: nextArtifacts,
       });
     },
     [unlockedArtifactIds, mood, currentPoet.id, currentYear, currentLocation.id, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme, unlockedBondIds]
