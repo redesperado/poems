@@ -26,6 +26,7 @@ interface PoemAssemblyModalProps {
   poem: PoemData;
   onComplete: (poemId: string, score: number) => void;
   onClose: () => void;
+  onOpenNote?: (poemTitle: string) => void;
 }
 
 type PlayMode = 'preview' | 'assembly' | 'dictation';
@@ -227,6 +228,7 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
   poem,
   onComplete,
   onClose,
+  onOpenNote,
 }) => {
   // 核心模式：'preview' (全篇精读) | 'assembly' (推敲填词) | 'dictation' (名篇默写)
   const [activeMode, setActiveMode] = useState<PlayMode>('assembly');
@@ -705,17 +707,29 @@ export const PoemAssemblyModal: React.FC<PoemAssemblyModalProps> = ({
             </button>
           </div>
 
-          {/* 右侧：关闭按钮 */}
-          <button
-            onClick={() => {
-              handleStopReciting();
-              onClose();
-            }}
-            className="w-8 h-8 rounded-full bg-theme-surface hover:bg-theme-surface-card text-theme-text-muted hover:text-theme-text border border-theme-border flex items-center justify-center transition-all shadow-xs cursor-pointer"
-            title="关闭弹窗"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {/* 右侧：札记与关闭按钮 */}
+          <div className="flex items-center space-x-2">
+            {onOpenNote && (
+              <button
+                onClick={() => onOpenNote(poem.title)}
+                className="px-2.5 py-1 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-poetry flex items-center space-x-1 cursor-pointer transition-all active:scale-95"
+                title="为此诗题写研学文心札记"
+              >
+                <span>✍</span>
+                <span className="hidden sm:inline">提笔札记</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                handleStopReciting();
+                onClose();
+              }}
+              className="w-8 h-8 rounded-full bg-theme-surface hover:bg-theme-surface-card text-theme-text-muted hover:text-theme-text border border-theme-border flex items-center justify-center transition-all shadow-xs cursor-pointer"
+              title="关闭弹窗"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </header>
 
         {/* =================================================================== */}

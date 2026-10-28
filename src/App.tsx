@@ -13,6 +13,7 @@ import { PoetHomePage } from './ui/components/PoetHomePage';
 import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
 import { TravelPassportModal } from './ui/components/TravelPassportModal';
 import { SaveBackupModal } from './ui/components/SaveBackupModal';
+import { UserProfileModal } from './ui/components/UserProfileModal';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
@@ -66,6 +67,7 @@ export const App: React.FC = () => {
   const [collectionInitialView, setCollectionInitialView] = useState<'poems' | 'artifacts'>('poems');
   const [isPassportModalOpen, setIsPassportModalOpen] = useState<boolean>(false);
   const [isSaveBackupOpen, setIsSaveBackupOpen] = useState<boolean>(false);
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
 
   // 快捷触发当前地点的诗词创作
   const handleTriggerCurrentLocationPoem = () => {
@@ -192,6 +194,7 @@ export const App: React.FC = () => {
           setIsCollectionOpen(true);
         }}
         onOpenSaveBackup={() => setIsSaveBackupOpen(true)}
+        onOpenUserProfile={() => setIsProfileOpen(true)}
         onOpenCollection={() => {
           setCollectionInitialView('poems');
           setIsCollectionOpen(true);
@@ -254,6 +257,7 @@ export const App: React.FC = () => {
         <PoemAssemblyModal
           poem={activePoemToAssemble}
           onComplete={completePoemAssembly}
+          onOpenNote={() => setIsProfileOpen(true)}
           onClose={() => setActivePoemToAssemble(null)}
         />
       )}
@@ -524,6 +528,18 @@ export const App: React.FC = () => {
           onClose={() => setIsSaveBackupOpen(false)}
         />
       )}
+
+      {/* 14. 文人书斋 · 雅士名牌、山河谱牒、推敲朱卷与文心墨札中心 (Demo) */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onRetryPoem={(poemId) => {
+          const targetPoem = activePack.poems.find((p) => p.id === poemId);
+          if (targetPoem) {
+            setActivePoemToAssemble(targetPoem);
+          }
+        }}
+      />
     </div>
   );
 };

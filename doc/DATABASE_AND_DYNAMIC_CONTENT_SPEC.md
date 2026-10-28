@@ -101,7 +101,11 @@ erDiagram
     POEM ||--o{ ENCOUNTER : "唱和互赠"
 
     USER_ACCOUNT ||--o{ USER_SAVE : "拥有多位诗人游历进度"
+    USER_ACCOUNT ||--o{ POEM_STUDY_RECORD : "沉淀研学答卷"
+    USER_ACCOUNT ||--o{ POETRY_NOTE : "手书文心墨札"
     POET ||--o{ USER_SAVE : "存档关联文人"
+    POEM ||--o{ POEM_STUDY_RECORD : "推敲评测卷宗"
+    POEM ||--o{ POETRY_NOTE : "研学心得感悟"
 
     POET {
         string id PK "文人英文标示"
@@ -190,23 +194,53 @@ erDiagram
     }
 
     USER_ACCOUNT {
-        string id PK "玩家用户ID"
-        string username "昵称"
-        string email "账号邮箱"
-        datetime created_at "注册时间"
+        string id PK "玩家唯一标识"
+        string username "登录名"
+        string pen_name "文人雅号 (如: 姑苏客)"
+        string avatar_icon "印章头像"
+        string rank_title "文位阶梯 (童生/秀才/举人/进士/翰林/宗师)"
+        datetime created_at "初入书斋时辰"
     }
 
     USER_SAVE {
-        string id PK "存档标识"
-        string user_id FK "玩家ID"
-        string poet_id FK "当前游历文人"
+        string id PK "存档槽位ID"
+        string user_id FK "所属玩家"
+        string slot_name "槽位雅号 (如: 太白任侠卷)"
+        string poet_id FK "游历文人"
         int current_year "当前年份"
-        string current_location_id "当前驻足城池"
+        string current_location_id "驻足名城"
         json current_mood "实时五维心境"
-        json unlocked_poem_ids "已点亮诗卷列表"
-        json unlocked_artifact_ids "行囊收录风物列表"
-        json encounter_bond_ids "千古相遇羁绊印鉴"
-        datetime updated_at "最近存档时间"
+        json unlocked_poem_ids "纳藏名篇列表"
+        json unlocked_artifact_ids "行囊风物列表"
+        json encounter_bond_ids "相遇羁绊印鉴"
+        json journey_logs "游历行履重大记事"
+        datetime updated_at "最近封印时辰"
+    }
+
+    POEM_STUDY_RECORD {
+        string id PK "朱卷答卷ID"
+        string user_id FK "作答玩家"
+        string save_slot_id FK "关联槽位"
+        string poem_id FK "研习诗篇"
+        string poet_id FK "诗篇作者"
+        int score "推敲评分 (100/75/50)"
+        string grade "评级 (甲等妙品/乙等通达/丙等尚可)"
+        int duration_seconds "推敲耗时秒数"
+        json mistakes "错题集 (错选字/诱导项/名师辨析)"
+        datetime completed_at "成卷时辰"
+    }
+
+    POETRY_NOTE {
+        string id PK "墨札ID"
+        string user_id FK "作札玩家"
+        string poem_id FK "关联诗篇(可选)"
+        string poet_id FK "关联文人(可选)"
+        string location_id FK "关联名城(可选)"
+        string title "札记题头"
+        text content "随笔正文感怀"
+        json tags "分类标签 (背诵/意象/感怀)"
+        datetime created_at "题写时辰"
+        datetime updated_at "润色时辰"
     }
 ```
 
@@ -341,20 +375,72 @@ model Encounter {
   bondSeal        String      // JSON: 朱砂羁绊方印名与样式
 }
 
-// 7. 用户存档表
-model UserSave {
-  id                   String      @id @default(cuid())
+// 7. 用户账户表
+model UserAccount {
+  id                String       @id
+  username          String       @unique
+  penName           String       // 文人雅号 (如: 姑苏客)
+  avatarIcon        String       // 印章头像标示
+  rankTitle         String       // "童生" | "秀才" | "举人" | "进士及第" | "翰林学士" | "一代文宗"
+  createdAt         DateTime     @default(now())
+
+  saves             JourneySave[]
+  studyRecords      PoemStudyRecord[]
+  notes             PoetryNote[]
+}
+
+// 8. 游历多槽位存档表 (山河谱牒)
+model JourneySave {
+  id                   String      @id
   userId               String
+  slotName             String      // "太白任侠一梦"
   poetId               String
   currentYear          Int
   currentLocationId    String
   currentMood          String      // JSON: MoodState
   unlockedPoemIds      String      // JSON: string[]
+  poemScores           String      // JSON: Record<string, number>
   unlockedArtifactIds  String      // JSON: string[]
-  encounterBondIds     String      // JSON: string[]
+  unlockedBondIds      String      // JSON: string[]
+  choicesMade          String      // JSON: Record<string, string>
+  journeyLogs          String      // JSON: Array<{ year, location, event }>
   updatedAt            DateTime    @updatedAt
 
+  user                 UserAccount @relation(fields: [userId], references: [id])
   poet                 Poet        @relation(fields: [poetId], references: [id])
+}
+
+// 9. 诗词推敲默写答卷表 (推敲朱卷 & 错题集)
+model PoemStudyRecord {
+  id                String      @id
+  userId            String
+  saveSlotId        String
+  poemId            String
+  poetId            String
+  score             Int         // 100 | 75 | 50
+  grade             String      // "甲等·妙品" | "乙等·通达" | "丙等·尚可"
+  durationSeconds   Int
+  mistakes          String      // JSON: Array<{ lineIndex, charIndex, chosenOption, correctOption, explanation }>
+  completedAt       DateTime    @default(now())
+
+  user              UserAccount @relation(fields: [userId], references: [id])
+  poem              Poem        @relation(fields: [poemId], references: [id])
+}
+
+// 10. 文心墨札笔记表
+model PoetryNote {
+  id                String      @id
+  userId            String
+  poemId            String?     // 可选关联诗篇
+  poetId            String?     // 可选关联文人
+  locationId        String?     // 可选关联名城
+  title             String      // 札记题头
+  content           String      // 随笔正文
+  tags              String      // JSON: string[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user              UserAccount @relation(fields: [userId], references: [id])
 }
 ```
 

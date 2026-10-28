@@ -17,6 +17,7 @@ interface HeaderNavProps {
   artifactCount?: number;
   onOpenArtifacts?: () => void;
   onOpenSaveBackup?: () => void;
+  onOpenUserProfile?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -33,6 +34,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   artifactCount,
   onOpenArtifacts,
   onOpenSaveBackup,
+  onOpenUserProfile,
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -137,6 +139,21 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <ScrollText className="w-3.5 h-3.5 text-theme-primary" />
             <span className="font-medium">首页</span>
+          </button>
+        )}
+
+        {/* 文人书斋与雅士名牌入口 */}
+        {onOpenUserProfile && (
+          <button
+            onClick={onOpenUserProfile}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full border border-theme-gold/50 bg-gradient-to-r from-amber-950/40 via-theme-surface-card to-amber-950/20 hover:border-theme-gold text-amber-200 text-xs transition-all active:scale-95 cursor-pointer font-poetry shadow-sm"
+            title="打开文人书斋 · 个人档案、多槽位存档、研学答卷与札记"
+          >
+            <span className="text-xs">🪶</span>
+            <span className="font-bold hidden sm:inline">青莲墨客</span>
+            <span className="text-[10px] px-1.5 py-0.2 bg-amber-500/25 text-amber-300 rounded border border-amber-500/40 font-mono">
+              书斋
+            </span>
           </button>
         )}
 
