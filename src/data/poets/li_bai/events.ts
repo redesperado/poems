@@ -90,9 +90,10 @@ export const LI_BAI_EVENTS: GameEvent[] = [
     year: 744,
     location_id: 'luoyang',
     type: 'meeting',
-    title: '洛阳初逢杜甫',
+    title: '洛阳初逢杜甫 · 双星并峙',
     description: '在东都洛阳遇见了三十三岁的杜甫与高适，三人携手登高、策马狂歌，中国文学史双星最耀眼的交汇！',
     mood_delta: { freedom: 25, passion: 25, anger: -10 },
+    triggers_encounter_id: 'encounter_li_du_744',
     next_event_id: 'li_bai_yingyang_752',
   },
   {

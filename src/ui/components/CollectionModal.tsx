@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PoemData } from '../../types/poem';
 import { PoetData } from '../../types/poet';
+import { HISTORICAL_ENCOUNTERS } from '../../data/encounters';
 import {
   X,
   BookOpen,
@@ -14,6 +15,7 @@ import {
   Calendar,
   Compass,
   ScrollText,
+  Crown,
 } from 'lucide-react';
 
 interface CollectionModalProps {
@@ -23,6 +25,8 @@ interface CollectionModalProps {
   poemScores: Record<string, number>;
   onClose: () => void;
   onSelectPoemForPlay?: (poem: PoemData) => void;
+  unlockedBondIds?: string[];
+  onOpenEncounter?: (encounterId: string) => void;
 }
 
 type CatalogFilter = 'all' | 'unlocked' | 'locked';
@@ -35,10 +39,17 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
   poemScores,
   onClose,
   onSelectPoemForPlay,
+  unlockedBondIds = [],
+  onOpenEncounter,
 }) => {
   // 选中的诗词，默认优先选中第一个已解锁的诗词
   const [selectedPoemId, setSelectedPoemId] = useState<string>(
     poems.find((p) => unlockedPoemIds.includes(p.id))?.id || poems[0]?.id || ''
+  );
+
+  // 千古羁绊印章
+  const unlockedEncounters = Object.values(HISTORICAL_ENCOUNTERS).filter((enc) =>
+    unlockedBondIds.includes(enc.bondSeal.id)
   );
 
   // 左侧藏目筛选
@@ -145,6 +156,30 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
                 待寻 ({poems.length - unlockedPoemIds.length})
               </button>
             </div>
+
+            {/* 千古羁绊印章区 */}
+            {unlockedEncounters.length > 0 && (
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 shrink-0">
+                <div className="flex items-center justify-between text-xs font-bold font-poetry text-amber-800 dark:text-amber-300">
+                  <span className="flex items-center space-x-1">
+                    <Crown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>千古羁绊印鉴 ({unlockedEncounters.length})</span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {unlockedEncounters.map((enc) => (
+                    <button
+                      key={enc.id}
+                      onClick={() => onOpenEncounter?.(enc.id)}
+                      className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-poetry font-bold flex items-center space-x-1 border border-red-300/40 shadow-xs active:scale-95 transition-all cursor-pointer"
+                      title={`点击重温《${enc.title}》`}
+                    >
+                      <span>🈴 {enc.bondSeal.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 诗目卡片列表 */}
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 no-scrollbar">

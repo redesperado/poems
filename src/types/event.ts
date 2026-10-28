@@ -50,6 +50,7 @@ export interface GameEvent {
   triggers_poem_id?: string | null;
   triggers_crisis?: CrisisDetails | null;
   triggers_retrospective?: PoetRetrospectiveData | null;
+  triggers_encounter_id?: string | null;
   next_event_id?: string | null;
 }
 

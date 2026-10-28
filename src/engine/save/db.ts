@@ -12,6 +12,7 @@ export interface PlayerSaveRecord {
   completedEventIds: string[];
   choicesMade: Record<string, string>; // choiceId -> optionId
   currentTheme: string;
+  unlockedBondIds?: string[]; // 已解锁的千古羁绊印章 ID 列表
   updatedAt: number;
 }
 
@@ -54,6 +55,7 @@ export async function loadGameSave(
     completedEventIds: [],
     choicesMade: {},
     currentTheme: preferredTheme,
+    unlockedBondIds: [],
     updatedAt: Date.now(),
   };
   await db.saves.put(defaultSave);

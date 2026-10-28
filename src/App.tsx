@@ -11,6 +11,7 @@ import { CrisisModal } from './ui/components/CrisisModal';
 import { PoetRetrospectiveModal } from './ui/components/PoetRetrospectiveModal';
 import { PoetSwitchModal } from './ui/components/PoetSwitchModal';
 import { PoetHomePage } from './ui/components/PoetHomePage';
+import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
 import { Sparkles, Compass, GitFork, Flame, Crown } from 'lucide-react';
@@ -30,6 +31,7 @@ export const App: React.FC = () => {
     poemScores,
     completedEventIds,
     choicesMade,
+    unlockedBondIds,
     activePoemToAssemble,
     setActivePoemToAssemble,
     activeLifeChoice,
@@ -42,6 +44,10 @@ export const App: React.FC = () => {
     activeRetrospective,
     setActiveRetrospective,
     triggerRetrospectiveForEvent,
+    activeEncounter,
+    setActiveEncounter,
+    triggerEncounter,
+    confirmEncounter,
     resetPoetJourney,
     completeEvent,
     isCollectionOpen,
@@ -74,6 +80,8 @@ export const App: React.FC = () => {
       triggerRetrospectiveForEvent(event);
     } else if (event.triggers_crisis || event.type === 'crisis_response') {
       triggerCrisisForEvent(event);
+    } else if (event.triggers_encounter_id) {
+      triggerEncounter(event.triggers_encounter_id);
     } else if (event.triggers_choice_id && !choicesMade[event.triggers_choice_id]) {
       triggerLifeChoice(event.triggers_choice_id);
     } else {
@@ -117,6 +125,12 @@ export const App: React.FC = () => {
             poems={activePack.poems}
             unlockedPoemIds={unlockedPoemIds}
             poemScores={poemScores}
+            unlockedBondIds={unlockedBondIds}
+            onOpenEncounter={(encId) => {
+              setIsCollectionOpen(false);
+              setIsOnHomePage(false);
+              triggerEncounter(encId);
+            }}
             onClose={() => setIsCollectionOpen(false)}
             onSelectPoemForPlay={(poem) => {
               setIsCollectionOpen(false);
@@ -240,6 +254,11 @@ export const App: React.FC = () => {
           poems={activePack.poems}
           unlockedPoemIds={unlockedPoemIds}
           poemScores={poemScores}
+          unlockedBondIds={unlockedBondIds}
+          onOpenEncounter={(encId) => {
+            setIsCollectionOpen(false);
+            triggerEncounter(encId);
+          }}
           onClose={() => setIsCollectionOpen(false)}
           onSelectPoemForPlay={(poem) => {
             setIsCollectionOpen(false);
@@ -329,6 +348,20 @@ export const App: React.FC = () => {
                 >
                   <Flame className="w-3.5 h-3.5" />
                   <span>查看朝代大事件与影响</span>
+                </button>
+              )}
+
+              {/* 如果是千古名仕相遇羁绊 */}
+              {activeEventNotice.triggers_encounter_id && (
+                <button
+                  onClick={() => {
+                    triggerEncounter(activeEventNotice.triggers_encounter_id!);
+                    setActiveEventNotice(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-600 via-rose-600 to-amber-700 hover:opacity-95 text-white text-xs font-bold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                  <span>赴千古相逢 · 见证同框</span>
                 </button>
               )}
 
@@ -431,6 +464,20 @@ export const App: React.FC = () => {
             setIsOnHomePage(true);
           }}
           onClose={() => setIsPoetSwitchOpen(false)}
+        />
+      )}
+
+      {/* 11. 千古名仕相遇 · 历史羁绊同框弹窗 (Poet Encounter) */}
+      {activeEncounter && (
+        <PoetEncounterModal
+          encounter={activeEncounter}
+          currentPoet={currentPoet}
+          isAlreadyUnlocked={unlockedBondIds.includes(activeEncounter.bondSeal.id)}
+          onConfirm={(enc) => {
+            confirmEncounter(enc);
+            completeEvent(activeEventNotice?.id || `${enc.primaryPoetId}_meets_${enc.secondaryPoetId}_${enc.year}`);
+          }}
+          onClose={() => setActiveEncounter(null)}
         />
       )}
     </div>

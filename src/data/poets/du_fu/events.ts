@@ -24,6 +24,7 @@ export const DU_FU_EVENTS: GameEvent[] = [
     description:
       '天宝三载，三十三岁的杜甫在洛阳与刚被唐玄宗“赐金放还”的李白相逢。两人一见如故，携手同游梁宋、把酒论诗，成为中国文学史上最璀璨的双星交汇。',
     mood_delta: { freedom: 30, passion: 25 },
+    triggers_encounter_id: 'encounter_li_du_744',
     next_event_id: 'du_fu_changan_struggle_751',
   },
   {

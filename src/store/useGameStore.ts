@@ -4,6 +4,8 @@ import { LocationData } from '../types/location';
 import { PoemData } from '../types/poem';
 import { GameEvent, LifeChoice, LifeChoiceOption, PoetRetrospectiveData } from '../types/event';
 import { PoetData } from '../types/poet';
+import { PoetEncounterData } from '../types/encounter';
+import { HISTORICAL_ENCOUNTERS } from '../data/encounters';
 import { LOCATIONS } from '../data/locations';
 import { POET_PACKS, PoetPack } from '../data/poets';
 import { loadGameSave, persistGameSave, PlayerSaveRecord } from '../engine/save/db';
@@ -56,12 +58,14 @@ export function useGameStore() {
   const [poemScores, setPoemScores] = useState<Record<string, number>>({});
   const [completedEventIds, setCompletedEventIds] = useState<string[]>([]);
   const [choicesMade, setChoicesMade] = useState<Record<string, string>>({});
+  const [unlockedBondIds, setUnlockedBondIds] = useState<string[]>([]);
 
   const [activePoemToAssemble, setActivePoemToAssemble] = useState<PoemData | null>(null);
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null);
   const [activeLifeChoice, setActiveLifeChoice] = useState<LifeChoice | null>(null);
   const [activeCrisis, setActiveCrisis] = useState<ActiveCrisisState | null>(null);
   const [activeRetrospective, setActiveRetrospective] = useState<PoetRetrospectiveData | null>(null);
+  const [activeEncounter, setActiveEncounter] = useState<PoetEncounterData | null>(null);
 
   const [isCollectionOpen, setIsCollectionOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -85,6 +89,7 @@ export function useGameStore() {
           setPoemScores(save.poemScores);
           setCompletedEventIds(save.completedEventIds || []);
           setChoicesMade(save.choicesMade || {});
+          setUnlockedBondIds(save.unlockedBondIds || []);
           if (LOCATIONS[save.locationId]) {
             setCurrentLocation(LOCATIONS[save.locationId]);
           }
@@ -239,6 +244,13 @@ export function useGameStore() {
           if (nextEvent.triggers_retrospective) {
             setActiveRetrospective(nextEvent.triggers_retrospective);
           }
+          // 如果下一个事件是千古文人相遇羁绊
+          if (nextEvent.triggers_encounter_id) {
+            const enc = HISTORICAL_ENCOUNTERS[nextEvent.triggers_encounter_id];
+            if (enc) {
+              setActiveEncounter(enc);
+            }
+          }
         }
 
         // 持久化到 IndexedDB
@@ -253,13 +265,14 @@ export function useGameStore() {
           completedEventIds: nextCompleted,
           choicesMade,
           currentTheme,
+          unlockedBondIds,
           updatedAt: Date.now(),
         });
 
         return nextCompleted;
       });
     },
-    [activePack.events, currentPoet.id, currentYear, currentLocation, mood, unlockedPoemIds, poemScores, choicesMade, currentTheme]
+    [activePack.events, currentPoet.id, currentYear, currentLocation, mood, unlockedPoemIds, poemScores, choicesMade, currentTheme, unlockedBondIds]
   );
 
   // 触发人生岔路
@@ -370,6 +383,12 @@ export function useGameStore() {
           if (nextEvent.triggers_retrospective) {
             setActiveRetrospective(nextEvent.triggers_retrospective);
           }
+          if (nextEvent.triggers_encounter_id) {
+            const enc = HISTORICAL_ENCOUNTERS[nextEvent.triggers_encounter_id];
+            if (enc) {
+              setActiveEncounter(enc);
+            }
+          }
         }
       }
 
@@ -385,10 +404,11 @@ export function useGameStore() {
         completedEventIds: nextCompleted,
         choicesMade,
         currentTheme,
+        unlockedBondIds,
         updatedAt: Date.now(),
       });
     },
-    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme]
+    [unlockedPoemIds, mood, activePack.events, completedEventIds, currentYear, currentLocation, currentPoet.id, poemScores, choicesMade, currentTheme, unlockedBondIds]
   );
 
   // 触发终极生平总评
@@ -397,6 +417,53 @@ export function useGameStore() {
       setActiveRetrospective(event.triggers_retrospective);
     }
   }, []);
+
+  // 触发千古相遇
+  const triggerEncounter = useCallback((encounterId: string) => {
+    const enc = HISTORICAL_ENCOUNTERS[encounterId];
+    if (enc) {
+      setActiveEncounter(enc);
+    }
+  }, []);
+
+  // 确认并缔结千古相遇羁绊
+  const confirmEncounter = useCallback(
+    (encounter: PoetEncounterData) => {
+      const nextBonds = unlockedBondIds.includes(encounter.bondSeal.id)
+        ? unlockedBondIds
+        : [...unlockedBondIds, encounter.bondSeal.id];
+      setUnlockedBondIds(nextBonds);
+
+      // 增益心境
+      const updatedMood = { ...mood };
+      Object.entries(encounter.moodDelta).forEach(([k, delta]) => {
+        const dim = k as keyof MoodState;
+        if (updatedMood[dim] !== undefined) {
+          updatedMood[dim] = Math.max(0, Math.min(100, updatedMood[dim] + delta));
+        }
+      });
+      setMood(updatedMood);
+
+      setActiveEncounter(null);
+
+      // 持久化到 IndexedDB
+      persistGameSave({
+        id: `save_${currentPoet.id}`,
+        poetId: currentPoet.id,
+        year: currentYear,
+        locationId: currentLocation.id,
+        mood: updatedMood,
+        unlockedPoemIds,
+        poemScores,
+        completedEventIds,
+        choicesMade,
+        currentTheme,
+        unlockedBondIds: nextBonds,
+        updatedAt: Date.now(),
+      });
+    },
+    [unlockedBondIds, mood, currentPoet.id, currentYear, currentLocation.id, unlockedPoemIds, poemScores, completedEventIds, choicesMade, currentTheme]
+  );
 
   // 重走诗仙长卷
   const resetPoetJourney = useCallback(() => {
@@ -411,6 +478,7 @@ export function useGameStore() {
     setActiveCrisis(null);
     setActivePoemToAssemble(null);
     setActiveLifeChoice(null);
+    setActiveEncounter(null);
 
     persistGameSave({
       id: `save_${currentPoet.id}`,
@@ -423,9 +491,10 @@ export function useGameStore() {
       completedEventIds: [],
       choicesMade: {},
       currentTheme,
+      unlockedBondIds,
       updatedAt: Date.now(),
     });
-  }, [currentPoet, unlockedPoemIds, poemScores, currentTheme]);
+  }, [currentPoet, unlockedPoemIds, poemScores, currentTheme, unlockedBondIds]);
 
   return {
     currentPoet,
@@ -444,6 +513,7 @@ export function useGameStore() {
     poemScores,
     completedEventIds,
     choicesMade,
+    unlockedBondIds,
     activePoemToAssemble,
     setActivePoemToAssemble,
     activeEvent,
@@ -459,6 +529,10 @@ export function useGameStore() {
     activeRetrospective,
     setActiveRetrospective,
     triggerRetrospectiveForEvent,
+    activeEncounter,
+    setActiveEncounter,
+    triggerEncounter,
+    confirmEncounter,
     resetPoetJourney,
     completeEvent,
     isCollectionOpen,

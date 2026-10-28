@@ -24,6 +24,7 @@ export const LI_QINGZHAO_EVENTS: GameEvent[] = [
     description:
       '十八岁李清照在东京汴梁与太学生赵明诚成婚。夫妻志趣高雅，省衣节食搜求商周鼎彝与汉魏碑刻，相濡以沫，“赌书消得泼茶香”，传为文坛千古佳话。',
     mood_delta: { freedom: 30, passion: 30 },
+    triggers_encounter_id: 'encounter_qingzhao_zhaomingcheng_1101',
     next_event_id: 'lqz_kaifeng_yijianmei_1104',
   },
   {
