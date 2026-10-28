@@ -240,6 +240,9 @@ pub struct RegisterRequest {
     pub username: String,
     pub pen_name: String,
     pub password: Option<String>,
+    pub avatar_icon: Option<String>,
+    pub rank_title: Option<String>,
+    pub metadata: Option<JsonValue>,
 }
 
 #[derive(Debug, Deserialize)]

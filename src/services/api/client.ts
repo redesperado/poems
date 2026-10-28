@@ -23,6 +23,31 @@ import { ALL_ARTIFACTS } from '../../data/artifacts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+export function formatUserAccount(raw: any): UserAccount {
+  if (!raw) {
+    return INITIAL_USER_ACCOUNTS[0];
+  }
+  const meta = raw.metadata || {};
+  const stats = meta.stats || raw.stats || {};
+  return {
+    id: raw.id || `usr_${Date.now()}`,
+    username: raw.username || 'traveler',
+    penName: raw.penName || raw.pen_name || '山河游子',
+    avatarIcon: raw.avatarIcon || raw.avatar_icon || '📜',
+    rankTitle: raw.rankTitle || raw.rank_title || '童生初入',
+    level: raw.level || 1,
+    exp: Number(raw.exp) || 100,
+    maxExp: raw.maxExp || (raw.level ? raw.level * 1000 : 1000),
+    stats: {
+      travelYears: Number(stats.travelYears ?? 1),
+      poemsStudied: Number(stats.poemsStudied ?? 0),
+      artifactsCollected: Number(stats.artifactsCollected ?? 0),
+      notesCount: Number(stats.notesCount ?? 0),
+    },
+    createdAt: meta.createdAtText || raw.createdAtText || raw.created_at || raw.createdAt || '天宝年间',
+  };
+}
+
 export class PoetryApiClient {
   private baseUrl: string;
   private currentUserId: string = 'user_01';
@@ -193,26 +218,46 @@ export class PoetryApiClient {
   // ---------------------------------------------------------------------------
   // 6. 用户认证与雅士档案
   // ---------------------------------------------------------------------------
-  async login(username: string, password?: string): Promise<UserAccount | null> {
+  async getUsers(): Promise<UserAccount[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/v1/users`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.code === 0 && Array.isArray(json.data) && json.data.length > 0) {
+          return json.data.map(formatUserAccount);
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch users from API failed, using local list:', e);
+    }
+    return INITIAL_USER_ACCOUNTS;
+  }
+
+  async login(accountOrPenName: string, password?: string): Promise<UserAccount | null> {
     try {
       const res = await fetch(`${this.baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: accountOrPenName, password }),
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
         const json = await res.json();
         if (json.code === 0 && json.data?.user) {
-          this.currentUserId = json.data.user.id;
-          return json.data.user;
+          const user = formatUserAccount(json.data.user);
+          this.currentUserId = user.id;
+          return user;
         }
       }
     } catch (e) {
       console.warn('Login request failed, using local fallback:', e);
     }
 
-    const matched = INITIAL_USER_ACCOUNTS.find((u) => u.username === username);
+    const matched = INITIAL_USER_ACCOUNTS.find(
+      (u) => u.username === accountOrPenName || u.penName === accountOrPenName
+    );
     if (matched) {
       this.currentUserId = matched.id;
       return matched;
@@ -220,19 +265,51 @@ export class PoetryApiClient {
     return null;
   }
 
-  async register(username: string, penName: string): Promise<UserAccount> {
+  async register(data: {
+    username?: string;
+    penName: string;
+    password?: string;
+    avatarIcon?: string;
+    rankTitle?: string;
+  } | string, penNameArg?: string): Promise<UserAccount> {
+    const payload = typeof data === 'string'
+      ? {
+          username: data,
+          penName: penNameArg || data,
+          avatarIcon: '📜',
+          rankTitle: '童生初入',
+        }
+      : {
+          username: data.username || `usr_${Date.now().toString().slice(-6)}`,
+          penName: data.penName,
+          password: data.password,
+          avatarIcon: data.avatarIcon || '📜',
+          rankTitle: data.rankTitle || '童生初入',
+        };
+
     try {
       const res = await fetch(`${this.baseUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ username, pen_name: penName }),
+        body: JSON.stringify({
+          username: payload.username,
+          pen_name: payload.penName,
+          password: payload.password,
+          avatar_icon: payload.avatarIcon,
+          rank_title: payload.rankTitle,
+          metadata: {
+            stats: { travelYears: 1, poemsStudied: 0, artifactsCollected: 0, notesCount: 0 },
+            createdAtText: '刚刚结契',
+          },
+        }),
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
         const json = await res.json();
         if (json.code === 0 && json.data?.user) {
-          this.currentUserId = json.data.user.id;
-          return json.data.user;
+          const user = formatUserAccount(json.data.user);
+          this.currentUserId = user.id;
+          return user;
         }
       }
     } catch (e) {
@@ -241,10 +318,10 @@ export class PoetryApiClient {
 
     const newUser: UserAccount = {
       id: `usr_${Date.now()}`,
-      username,
-      penName,
-      avatarIcon: '📜',
-      rankTitle: '童生初入',
+      username: payload.username,
+      penName: payload.penName,
+      avatarIcon: payload.avatarIcon,
+      rankTitle: payload.rankTitle,
       level: 1,
       exp: 100,
       maxExp: 1000,
@@ -269,7 +346,7 @@ export class PoetryApiClient {
       if (res.ok) {
         const json = await res.json();
         if (json.code === 0 && json.data) {
-          return json.data;
+          return formatUserAccount(json.data);
         }
       }
     } catch (e) {

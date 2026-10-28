@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PoetData } from '../../types/poet';
 import { LocationData } from '../../types/location';
-import { Palette, BookOpen, Compass, ChevronDown, Check, ScrollText } from 'lucide-react';
+import { UserAccount } from '../../types/userStudio';
+import { Palette, BookOpen, Compass, ChevronDown, Check, ScrollText, User } from 'lucide-react';
 
 interface HeaderNavProps {
   poet: PoetData;
@@ -17,6 +18,9 @@ interface HeaderNavProps {
   artifactCount?: number;
   onOpenArtifacts?: () => void;
   onOpenSaveBackup?: () => void;
+  currentUser?: UserAccount;
+  onOpenUserProfile?: () => void;
+  onOpenAuth?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -33,6 +37,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   artifactCount,
   onOpenArtifacts,
   onOpenSaveBackup,
+  currentUser,
+  onOpenUserProfile,
+  onOpenAuth,
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -247,6 +254,32 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             {unlockedCount}/{totalCount}
           </span>
         </button>
+
+        {/* 雅士名牌与书斋入口 */}
+        {onOpenUserProfile && (
+          <button
+            onClick={onOpenUserProfile}
+            className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-theme-surface-card hover:bg-theme-surface border border-theme-border hover:border-theme-primary/60 text-theme-text text-xs font-poetry transition-all shadow-xs active:scale-95 cursor-pointer group"
+            title="文人书斋 · 查看档案与多槽位存档"
+          >
+            <span className="text-xs">{currentUser?.avatarIcon || '📜'}</span>
+            <span className="font-bold text-theme-text group-hover:text-theme-primary transition-colors max-w-[80px] truncate">
+              {currentUser?.penName || '山河雅士'}
+            </span>
+          </button>
+        )}
+
+        {/* 快速登临 / 切换雅号入口 */}
+        {onOpenAuth && (
+          <button
+            onClick={onOpenAuth}
+            className="hidden md:flex items-center space-x-1 px-2.5 py-1.5 rounded-full bg-theme-primary/10 border border-theme-primary/25 hover:border-theme-primary hover:bg-theme-primary hover:text-white text-theme-primary text-xs transition-all active:scale-95 font-poetry cursor-pointer shadow-xs font-bold"
+            title="题名结契或登临山河"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>登临</span>
+          </button>
+        )}
       </div>
     </header>
   );

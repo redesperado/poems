@@ -14,6 +14,7 @@ import { PoetEncounterModal } from './ui/components/PoetEncounterModal';
 import { TravelPassportModal } from './ui/components/TravelPassportModal';
 import { SaveBackupModal } from './ui/components/SaveBackupModal';
 import { UserProfileModal } from './ui/components/UserProfileModal';
+import { AuthModal } from './ui/components/AuthModal';
 import { INITIAL_USER_ACCOUNTS, UserAccount } from './types/userStudio';
 import { AVAILABLE_POETS } from './data/poets';
 import { GameEvent } from './types/event';
@@ -69,6 +70,7 @@ export const App: React.FC = () => {
   const [isPassportModalOpen, setIsPassportModalOpen] = useState<boolean>(false);
   const [isSaveBackupOpen, setIsSaveBackupOpen] = useState<boolean>(false);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserAccount>(INITIAL_USER_ACCOUNTS[0]);
 
   // 快捷触发当前地点的诗词创作
@@ -126,8 +128,21 @@ export const App: React.FC = () => {
           }}
           onOpenCollection={() => setIsCollectionOpen(true)}
           onOpenUserProfile={() => setIsProfileOpen(true)}
-          userPenName={currentUser.penName}
-          userRank={currentUser.rankTitle}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          userPenName={currentUser?.penName || '山河雅士'}
+          userRank={currentUser?.rankTitle || '童生初入'}
+          userAvatar={currentUser?.avatarIcon || '📜'}
+        />
+
+        {/* 雅士登临阁 · 登录 / 题名结契 / 江湖泛舟 (Demo) */}
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          currentUser={currentUser}
+          onSuccess={(u) => {
+            setCurrentUser(u);
+            setIsAuthModalOpen(false);
+          }}
+          onClose={() => setIsAuthModalOpen(false)}
         />
 
         {/* 文人书斋 · 个人档案中心 (包含登录/切换雅号与多槽位存档) */}
@@ -136,6 +151,7 @@ export const App: React.FC = () => {
           currentUser={currentUser}
           onSelectUser={(u) => setCurrentUser(u)}
           onClose={() => setIsProfileOpen(false)}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
           onRetryPoem={(poemId) => {
             const targetPoem = activePack.poems.find((p) => p.id === poemId);
             if (targetPoem) {
@@ -227,6 +243,9 @@ export const App: React.FC = () => {
           setIsCollectionOpen(true);
         }}
         onBackToHome={() => setIsOnHomePage(true)}
+        currentUser={currentUser}
+        onOpenUserProfile={() => setIsProfileOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
       {/* 2. 主场景：地图游历与右侧悬浮 5 维情绪仪表 */}
@@ -562,6 +581,7 @@ export const App: React.FC = () => {
         currentUser={currentUser}
         onSelectUser={(u) => setCurrentUser(u)}
         onClose={() => setIsProfileOpen(false)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         onRetryPoem={(poemId) => {
           const targetPoem = activePack.poems.find((p) => p.id === poemId);
           if (targetPoem) {
@@ -574,6 +594,17 @@ export const App: React.FC = () => {
           }
           setIsProfileOpen(false);
         }}
+      />
+
+      {/* 15. 雅士登临阁 · 登录 / 题名结契 / 江湖泛舟 (Demo) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        currentUser={currentUser}
+        onSuccess={(u) => {
+          setCurrentUser(u);
+          setIsAuthModalOpen(false);
+        }}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

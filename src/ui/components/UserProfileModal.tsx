@@ -38,6 +38,7 @@ interface UserProfileModalProps {
   onClose: () => void;
   onRetryPoem?: (poemId: string) => void;
   onLoadSlot?: (slot: JourneySaveSlot) => void;
+  onOpenAuth?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -47,6 +48,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   onRetryPoem,
   onLoadSlot,
+  onOpenAuth,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'saves' | 'study' | 'notes'>('profile');
 
@@ -56,6 +58,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     propUser || INITIAL_USER_ACCOUNTS[0]
   );
   const currentUser = propUser || localCurrentUser;
+
+  // 防御性安全值，防止后端字段缺失引发运行时白屏
+  const safePenName = currentUser?.penName || '山河雅士';
+  const safeRankTitle = currentUser?.rankTitle || '童生初入';
+  const safeAvatarIcon = currentUser?.avatarIcon || '📜';
+  const safeUsername = currentUser?.username || 'traveler';
+  const safeCreatedAt = currentUser?.createdAt || '天宝年间';
+  const safeExp = Number(currentUser?.exp) || 100;
+  const safeMaxExp = Math.max(Number(currentUser?.maxExp) || 1000, 1);
+  const safeStats = {
+    travelYears: Number(currentUser?.stats?.travelYears ?? 1),
+    poemsStudied: Number(currentUser?.stats?.poemsStudied ?? 0),
+    artifactsCollected: Number(currentUser?.stats?.artifactsCollected ?? 0),
+    notesCount: Number(currentUser?.stats?.notesCount ?? 0),
+  };
 
   const [isSwitchingUser, setIsSwitchingUser] = useState(false);
   const [newPenName, setNewPenName] = useState('');
@@ -218,7 +235,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div className="px-6 py-4 border-b border-theme-border bg-theme-surface-card flex items-center justify-between shrink-0 shadow-xs">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full bg-theme-primary/10 border border-theme-primary/30 flex items-center justify-center text-theme-primary text-xl shadow-xs">
-              {currentUser.avatarIcon}
+              {safeAvatarIcon}
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -226,22 +243,29 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   文人书斋 · 个人档案中心
                 </h2>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-theme-primary/10 border border-theme-primary/25 text-theme-primary font-bold">
-                  {currentUser.rankTitle}
+                  {safeRankTitle}
                 </span>
               </div>
               <p className="text-xs text-theme-text-muted mt-0.5">
-                雅士：<span className="font-bold text-theme-text">{currentUser.penName}</span>（{currentUser.username}） · 结契于 {currentUser.createdAt}
+                雅士：<span className="font-bold text-theme-text">{safePenName}</span>（{safeUsername}） · 结契于 {safeCreatedAt}
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setIsSwitchingUser(!isSwitchingUser)}
-              className="px-3.5 py-1.5 text-xs rounded-full border border-theme-border hover:border-theme-primary text-theme-text bg-theme-surface hover:text-theme-primary transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs font-bold"
+              onClick={() => {
+                if (onOpenAuth) {
+                  onOpenAuth();
+                } else {
+                  setIsSwitchingUser(!isSwitchingUser);
+                }
+              }}
+              className="px-3.5 py-1.5 text-xs rounded-full border border-theme-primary/40 hover:border-theme-primary text-theme-primary bg-theme-primary/10 hover:bg-theme-primary hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs font-bold"
+              title="题名结契或使用雅号登临"
             >
-              <User className="w-3.5 h-3.5 text-theme-primary" />
-              <span>切换雅号 / 登录</span>
+              <User className="w-3.5 h-3.5" />
+              <span>雅士登临 / 结契</span>
             </button>
             <button
               onClick={onClose}
@@ -253,7 +277,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
-        {/* 切换用户抽屉 (Demo) */}
+        {/* 切换用户抽屉 (快速通道) */}
         {isSwitchingUser && (
           <div className="px-6 py-3.5 bg-theme-surface-card border-b border-theme-border flex flex-wrap items-center justify-between gap-3 text-xs animate-fadeIn shrink-0 shadow-inner">
             <div className="flex items-center space-x-2">
@@ -269,27 +293,38 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         : 'border-theme-border bg-theme-surface hover:border-theme-primary/50 text-theme-text'
                     }`}
                   >
-                    {u.avatarIcon} {u.penName}
+                    {u.avatarIcon || '📜'} {u.penName}
                   </button>
                 ))}
               </div>
             </div>
 
-            <form onSubmit={handleCreateUser} className="flex items-center space-x-2">
-              <input
-                type="text"
-                placeholder="题写新雅号（如：沧浪客）"
-                value={newPenName}
-                onChange={(e) => setNewPenName(e.target.value)}
-                className="px-3 py-1 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs focus:outline-none focus:border-theme-primary"
-              />
-              <button
-                type="submit"
-                className="px-3 py-1 bg-theme-primary hover:bg-theme-primary-hover text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              >
-                + 结契入斋
-              </button>
-            </form>
+            <div className="flex items-center space-x-2">
+              {onOpenAuth && (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="px-3 py-1 bg-theme-primary/15 border border-theme-primary/30 text-theme-primary hover:bg-theme-primary hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  打开登临阁 ↗
+                </button>
+              )}
+              <form onSubmit={handleCreateUser} className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  placeholder="题写新雅号（如：沧浪客）"
+                  value={newPenName}
+                  onChange={(e) => setNewPenName(e.target.value)}
+                  className="px-3 py-1 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs focus:outline-none focus:border-theme-primary"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1 bg-theme-primary hover:bg-theme-primary-hover text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  + 结契入斋
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
@@ -359,28 +394,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="p-6 rounded-2xl bg-theme-surface-card border border-theme-border shadow-card-soft flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
                 <div className="flex items-center space-x-5 z-10">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-theme-primary/20 via-theme-surface to-theme-primary/5 border-2 border-theme-primary/40 flex items-center justify-center shadow-md">
-                    <span className="text-4xl text-theme-primary">{currentUser.avatarIcon}</span>
+                    <span className="text-4xl text-theme-primary">{safeAvatarIcon}</span>
                   </div>
                   <div>
                     <div className="flex items-center space-x-3">
                       <h3 className="text-2xl font-bold text-theme-text tracking-wide">
-                        {currentUser.penName}
+                        {safePenName}
                       </h3>
                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-theme-primary/10 border border-theme-primary/30 text-theme-primary flex items-center space-x-1">
                         <Award className="w-3.5 h-3.5" />
-                        <span>文位 · {currentUser.rankTitle}</span>
+                        <span>文位 · {safeRankTitle}</span>
                       </span>
                     </div>
                     <p className="text-xs text-theme-text-muted mt-2">
-                      文位进度：经验值 <span className="font-bold text-theme-text">{currentUser.exp}</span> / {currentUser.maxExp}（距晋升下一文位还需{' '}
-                      <span className="font-bold text-theme-primary">{currentUser.maxExp - currentUser.exp}</span> 研悟点）
+                      文位进度：经验值 <span className="font-bold text-theme-text">{safeExp}</span> / {safeMaxExp}（距晋升下一文位还需{' '}
+                      <span className="font-bold text-theme-primary">{Math.max(safeMaxExp - safeExp, 0)}</span> 研悟点）
                     </p>
                     {/* 经验进度条 */}
                     <div className="w-64 h-2.5 bg-theme-canvas rounded-full overflow-hidden mt-2.5 border border-theme-border">
                       <div
                         className="h-full bg-gradient-to-r from-theme-primary to-theme-accent rounded-full transition-all duration-500"
                         style={{
-                          width: `${(currentUser.exp / currentUser.maxExp) * 100}%`,
+                          width: `${Math.min(Math.max((safeExp / safeMaxExp) * 100, 0), 100)}%`,
                         }}
                       />
                     </div>
@@ -389,7 +424,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                 {/* 汉唐宋印 · 金石石刻名印 (当朝篆字、金石崩边、刀痕与朱砂矿物拓印效果，支持阴阳刻点击切换) */}
                 <StoneSealStamp
-                  penName={currentUser.penName}
+                  penName={safePenName}
                   size="md"
                   defaultMode="yin"
                   className="shrink-0 z-10"
@@ -404,7 +439,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <span>漫游春秋</span>
                   </p>
                   <p className="text-2xl font-bold text-theme-text font-serif">
-                    {currentUser.stats.travelYears}{' '}
+                    {safeStats.travelYears}{' '}
                     <span className="text-xs font-normal text-theme-text-muted">载</span>
                   </p>
                 </div>
@@ -414,7 +449,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <span>精研名篇</span>
                   </p>
                   <p className="text-2xl font-bold text-theme-text font-serif">
-                    {currentUser.stats.poemsStudied}{' '}
+                    {safeStats.poemsStudied}{' '}
                     <span className="text-xs font-normal text-theme-text-muted">首</span>
                   </p>
                 </div>
@@ -424,7 +459,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <span>山河风物</span>
                   </p>
                   <p className="text-2xl font-bold text-theme-text font-serif">
-                    {currentUser.stats.artifactsCollected}{' '}
+                    {safeStats.artifactsCollected}{' '}
                     <span className="text-xs font-normal text-theme-text-muted">件</span>
                   </p>
                 </div>
@@ -434,7 +469,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <span>文心墨札</span>
                   </p>
                   <p className="text-2xl font-bold text-theme-text font-serif">
-                    {currentUser.stats.notesCount}{' '}
+                    {safeStats.notesCount}{' '}
                     <span className="text-xs font-normal text-theme-text-muted">卷</span>
                   </p>
                 </div>
@@ -449,7 +484,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 text-center text-xs">
                   {['童生', '秀才', '举人', '进士及第', '翰林学士', '一代宗师'].map(
                     (rank, idx) => {
-                      const isCurrent = currentUser.rankTitle.includes(rank);
+                      const isCurrent = safeRankTitle.includes(rank);
                       const isPast = idx < 4; // 模拟已达到
                       return (
                         <div
@@ -954,9 +989,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             <div className="w-full flex items-center justify-between text-[11px] text-stone-600 border-t border-stone-300 pt-3">
-              <span>雅士：{currentUser.penName}</span>
+              <span>雅士：{safePenName}</span>
               <StoneSealStamp
-                penName={currentUser.penName}
+                penName={safePenName}
                 size="sm"
                 defaultMode="yin"
                 showCaption={false}

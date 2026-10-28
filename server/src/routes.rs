@@ -45,6 +45,7 @@ pub fn create_router(state: AppState) -> Router {
         // 7. 用户认证与雅士档案
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/register", post(register))
+        .route("/api/v1/users", get(list_users))
         .route("/api/v1/users/me", get(get_current_user).put(update_current_user))
         // 8. 多槽位游历存档
         .route("/api/v1/saves", get(list_saves).post(create_or_update_save))
@@ -393,7 +394,7 @@ async fn login(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     if let Some(pool) = &state.db {
         let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE username = $1 AND status = 'active'",
+            "SELECT * FROM users WHERE (username = $1 OR pen_name = $1) AND status = 'active' ORDER BY level DESC LIMIT 1",
         )
         .bind(&payload.username)
         .fetch_optional(pool)
@@ -408,7 +409,7 @@ async fn login(
                     "user": u
                 }
             }))),
-            None => Err((StatusCode::UNAUTHORIZED, "用户不存在或密码有误".into())),
+            None => Err((StatusCode::UNAUTHORIZED, "未寻得该雅号或密码有误".into())),
         }
     } else {
         // Mock fallback for offline dev
@@ -423,7 +424,13 @@ async fn login(
                     "avatar_icon": "🪶",
                     "rank_title": "翰林学士",
                     "level": 6,
-                    "exp": 4200
+                    "exp": 4200,
+                    "stats": {
+                        "travelYears": 42,
+                        "poemsStudied": 14,
+                        "artifactsCollected": 11,
+                        "notesCount": 6
+                    }
                 }
             }
         })))
@@ -436,17 +443,32 @@ async fn register(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     if let Some(pool) = &state.db {
         let new_id = format!("usr_{}", Uuid::new_v4().simple());
+        let avatar = payload.avatar_icon.unwrap_or_else(|| "📜".to_string());
+        let rank = payload.rank_title.unwrap_or_else(|| "童生初入".to_string());
+        let meta = payload.metadata.unwrap_or_else(|| json!({
+            "stats": {
+                "travelYears": 1,
+                "poemsStudied": 0,
+                "artifactsCollected": 0,
+                "notesCount": 0
+            },
+            "createdAtText": "刚刚结契"
+        }));
+
         let res = sqlx::query_as::<_, User>(
-            r#"INSERT INTO users (id, username, password_hash, pen_name)
-               VALUES ($1, $2, 'argon2_mock', $3)
+            r#"INSERT INTO users (id, username, password_hash, pen_name, avatar_icon, rank_title, metadata)
+               VALUES ($1, $2, 'argon2_mock', $3, $4, $5, $6)
                RETURNING *"#,
         )
         .bind(&new_id)
         .bind(&payload.username)
         .bind(&payload.pen_name)
+        .bind(&avatar)
+        .bind(&rank)
+        .bind(&meta)
         .fetch_one(pool)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("注册失败: {}", e)))?;
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("注册结契失败: {}", e)))?;
 
         Ok(Json(json!({
             "code": 0,
@@ -464,13 +486,36 @@ async fn register(
                     "id": "user_new",
                     "username": payload.username,
                     "pen_name": payload.pen_name,
-                    "avatar_icon": "📜",
+                    "avatar_icon": payload.avatar_icon.unwrap_or_else(|| "📜".to_string()),
                     "rank_title": "童生初入",
                     "level": 1,
-                    "exp": 100
+                    "exp": 100,
+                    "stats": {
+                        "travelYears": 1,
+                        "poemsStudied": 0,
+                        "artifactsCollected": 0,
+                        "notesCount": 0
+                    }
                 }
             }
         })))
+    }
+}
+
+async fn list_users(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if let Some(pool) = &state.db {
+        let users = sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE status = 'active' ORDER BY level DESC, exp DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        Ok(Json(json!({ "code": 0, "data": users })))
+    } else {
+        Ok(Json(json!({ "code": 0, "data": [] })))
     }
 }
 

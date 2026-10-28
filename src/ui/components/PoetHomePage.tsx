@@ -20,8 +20,10 @@ interface PoetHomePageProps {
   onStartJourney: (poetId: string) => void;
   onOpenCollection: () => void;
   onOpenUserProfile?: () => void;
+  onOpenAuth?: () => void;
   userPenName?: string;
   userRank?: string;
+  userAvatar?: string;
 }
 
 export const PoetHomePage: React.FC<PoetHomePageProps> = ({
@@ -32,8 +34,10 @@ export const PoetHomePage: React.FC<PoetHomePageProps> = ({
   onStartJourney,
   onOpenCollection,
   onOpenUserProfile,
+  onOpenAuth,
   userPenName = '青莲墨客',
   userRank = '翰林学士',
+  userAvatar = '📜',
 }) => {
   const [selectedDynasty, setSelectedDynasty] = useState<'all' | 'tang' | 'song'>('all');
   const [selectedPoetId, setSelectedPoetId] = useState<string>(currentPoetId || 'li_bai');
@@ -109,15 +113,15 @@ export const PoetHomePage: React.FC<PoetHomePageProps> = ({
             <span>典藏阁</span>
           </button>
 
-          {/* 用户登录 / 雅士名牌入口 (登录功能放于首页) */}
+          {/* 雅士名牌入口 */}
           {onOpenUserProfile && (
             <button
               onClick={onOpenUserProfile}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-theme-surface-card hover:bg-theme-surface border border-theme-border hover:border-theme-primary/60 text-theme-text text-xs font-poetry transition-all shadow-xs active:scale-95 cursor-pointer group"
-              title="登录雅号 / 查看个人档案与山河谱牒"
+              title="查看个人研学档案与山河谱牒"
             >
-              <div className="w-5 h-5 rounded-full bg-theme-primary/10 border border-theme-primary/30 flex items-center justify-center text-theme-primary text-[11px] group-hover:scale-105 transition-transform">
-                <User className="w-3 h-3 text-theme-primary" />
+              <div className="w-5 h-5 rounded-full bg-theme-primary/10 border border-theme-primary/30 flex items-center justify-center text-sm group-hover:scale-105 transition-transform">
+                {userAvatar}
               </div>
               <span className="font-bold text-theme-text group-hover:text-theme-primary transition-colors">
                 {userPenName}
@@ -125,6 +129,18 @@ export const PoetHomePage: React.FC<PoetHomePageProps> = ({
               <span className="text-[10px] px-1.5 py-0.2 bg-theme-primary/10 text-theme-primary rounded border border-theme-primary/20 font-sans font-medium">
                 {userRank}
               </span>
+            </button>
+          )}
+
+          {/* 雅士登临阁 (登录 / 题名结契) 专用入口 */}
+          {onOpenAuth && (
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center space-x-1 px-3 py-1.5 rounded-full bg-theme-primary hover:bg-theme-primary-hover text-white text-xs font-poetry transition-all shadow-jade-glow active:scale-95 cursor-pointer font-bold"
+              title="题名结契、凭牒登临或切换雅号"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>登临 / 结契</span>
             </button>
           )}
         </div>
