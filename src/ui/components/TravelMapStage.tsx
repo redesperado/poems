@@ -8,6 +8,7 @@ import { MAJOR_CITIES, CityCulturalData } from '../../data/cities';
 import { soundEngine } from '../../engine/audio/soundEngine';
 import { CityDetailModal } from './CityDetailModal';
 import { WorldChronicleDrawer } from './WorldChronicleDrawer';
+import { TravelMapStage3D } from './TravelMapStage3D';
 import {
   TANG_EMPIRE_BORDER,
   SONG_EMPIRE_BORDER,
@@ -99,6 +100,25 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
   unlockedArtifactIds,
   onCollectArtifact,
 }) => {
+  // 2D 舆图 vs 3D 千里江山沙盘模式切换
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => {
+    try {
+      const saved = localStorage.getItem('tang_song_map_mode');
+      return saved === '3d' ? '3d' : '2d';
+    } catch {
+      return '2d';
+    }
+  });
+
+  const handleSwitchMode = (mode: '2d' | '3d') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('tang_song_map_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
@@ -793,8 +813,41 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
     }
   };
 
+  // 如果处于 3D 模式，直接渲染全新 Three.js 千里江山立体沙盘
+  if (viewMode === '3d') {
+    return (
+      <TravelMapStage3D
+        currentLocation={currentLocation}
+        dynasty={dynasty}
+        onTravel={onTravel}
+        unlockedPoemIds={unlockedPoemIds}
+        currentYear={currentYear}
+        currentPoet={currentPoet}
+        activePoems={activePoems}
+        onSelectPoemForPlay={onSelectPoemForPlay}
+        unlockedArtifactIds={unlockedArtifactIds}
+        onCollectArtifact={onCollectArtifact}
+        onSwitchTo2D={() => handleSwitchMode('2d')}
+      />
+    );
+  }
+
   return (
     <div className="relative w-full h-full flex-1 overflow-hidden select-none bg-[#EAF2E8]">
+      {/* 2D 状态下右上角直通 3D 模式的一键切换入口 */}
+      <div className="absolute top-4 right-4 z-[1000] flex items-center space-x-2">
+        <button
+          onClick={() => handleSwitchMode('3d')}
+          className="flex items-center space-x-2 px-3.5 py-2 rounded-full bg-gradient-to-r from-amber-700 via-amber-800 to-stone-900 text-amber-100 font-poetry font-bold text-xs border border-amber-500/50 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer backdrop-blur-md group animate-pulse"
+          title="切换至 3D 千里江山立体沙盘模式"
+        >
+          <span className="text-base group-hover:rotate-12 transition-transform">🏔️</span>
+          <span>开启 3D 沙盘</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-400 text-stone-950 font-sans font-bold">
+            NEW
+          </span>
+        </button>
+      </div>
       {/* 1. 顶部悬浮：世界播报风云台 */}
       <WorldChronicleDrawer
         currentYear={currentYear}
@@ -808,6 +861,17 @@ export const TravelMapStage: React.FC<TravelMapStageProps> = ({
 
       {/* 3. 悬浮地图交互控件 (右下角) */}
       <div className="absolute right-4 bottom-24 z-[1000] flex flex-col items-center bg-white/95 backdrop-blur-md border border-slate-300 rounded-2xl p-1.5 shadow-xl space-y-1.5">
+        {/* 3D 模式直达按键 */}
+        <button
+          onClick={() => handleSwitchMode('3d')}
+          title="切换至 3D 千里江山立体沙盘"
+          className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all shadow-md group"
+        >
+          <span className="text-sm group-hover:scale-110 transition-transform">🏔️</span>
+        </button>
+
+        <div className="w-5 h-[1px] bg-slate-300 my-0.5" />
+
         {/* 底图样式切换 (真实山川 / 卫星影像 / 宣纸绢本 / 水墨舆图) */}
         <button
           onClick={cycleBasemapStyle}
